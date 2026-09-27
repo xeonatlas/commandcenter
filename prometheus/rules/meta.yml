@@ -1,1 +1,33 @@
-groups: []
+groups:
+  - name: meta
+    rules:
+      # Routed to healthchecks.io every minute; silence from it is the page.
+      - alert: Watchdog
+        expr: vector(1)
+        labels:
+          severity: none
+        annotations:
+          summary: "Always firing; proves the alerting pipeline is alive."
+
+      # node targets are HostDown's; one alert per job, not per probe.
+      - alert: ScrapeTargetDown
+        expr: count by (job) (up{job!="node"} == 0) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $value }} {{ $labels.job }} target(s) are not answering scrapes"
+
+      - alert: PrometheusRuleFailures
+        expr: increase(prometheus_rule_evaluation_failures_total[10m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "Prometheus rule group {{ $labels.rule_group }} is failing to evaluate"
+
+      - alert: AlertNotificationsFailing
+        expr: increase(alertmanager_notifications_failed_total[15m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "Alertmanager failed to deliver to {{ $labels.integration }}"

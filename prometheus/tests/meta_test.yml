@@ -1,0 +1,57 @@
+rule_files:
+  - ../rules/meta.yml
+
+evaluation_interval: 30s
+
+tests:
+  - name: the watchdog is always firing
+    interval: 1m
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: Watchdog
+        exp_alerts:
+          - exp_labels: {severity: none}
+            exp_annotations: {summary: "Always firing; proves the alerting pipeline is alive."}
+
+  - name: non-node targets down for five minutes warn once per job
+    interval: 1m
+    input_series:
+      - series: 'up{job="blackbox",instance="https://a.example/"}'
+        values: '0x10'
+      - series: 'up{job="blackbox",instance="https://b.example/"}'
+        values: '0x10'
+      - series: 'up{job="node",instance="127.0.0.1:9100"}'
+        values: '0x10'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: ScrapeTargetDown
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: ScrapeTargetDown
+        exp_alerts:
+          - exp_labels: {severity: warning, job: blackbox}
+            exp_annotations: {summary: "2 blackbox target(s) are not answering scrapes"}
+
+  - name: rule evaluation failures warn
+    interval: 1m
+    input_series:
+      - series: 'prometheus_rule_evaluation_failures_total{rule_group="/etc/prometheus/rules/hosts.yml;hosts"}'
+        values: '0 0 1 2 3'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: PrometheusRuleFailures
+        exp_alerts:
+          - exp_labels: {severity: warning, rule_group: "/etc/prometheus/rules/hosts.yml;hosts"}
+            exp_annotations: {summary: "Prometheus rule group /etc/prometheus/rules/hosts.yml;hosts is failing to evaluate"}
+
+  - name: failed notifications warn
+    interval: 1m
+    input_series:
+      - series: 'alertmanager_notifications_failed_total{integration="pushover"}'
+        values: '0 0 1 1 1'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: AlertNotificationsFailing
+        exp_alerts:
+          - exp_labels: {severity: warning, integration: pushover}
+            exp_annotations: {summary: "Alertmanager failed to deliver to pushover"}
