@@ -1,0 +1,28 @@
+groups:
+  - name: probes
+    rules:
+      - alert: ProbeDown
+        expr: probe_success{job="blackbox"} == 0
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.service }} is unreachable: {{ $labels.instance }}"
+
+      # More than 80% failing together is the home line, not a dozen outages.
+      # Alertmanager uses this to inhibit the individual ProbeDown pages.
+      - alert: HomeConnectivityLost
+        expr: count(probe_success{job="blackbox"} == 0) / count(probe_success{job="blackbox"}) > 0.8
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Most external probes are failing at once; the home connection is the likely cause."
+
+      - alert: CertExpiringSoon
+        expr: (probe_ssl_earliest_cert_expiry{job="blackbox"} - time()) / 86400 < 14
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "TLS certificate for {{ $labels.instance }} expires within 14 days"

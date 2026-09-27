@@ -1,0 +1,36 @@
+- labels: {module: http_2xx, service: lightning-api}
+  targets:
+    - https://api.lightningapi.dev/health
+    - https://api.warpulse.com/health
+- labels: {module: http_2xx, service: lightning-site}
+  targets:
+    - https://lightningapi.dev/
+- labels: {module: http_any_answer, service: lightning-tiles}
+  targets:
+    - https://tiles.lightningapi.dev/
+- labels: {module: http_2xx, service: ddcloud}
+  targets:
+    - https://cloud.niallmurray.com/health
+- labels: {module: http_any_answer, service: ddcloud-analytics}
+  targets:
+    - https://analytics.niallmurray.com/
+- labels: {module: http_2xx, service: dualdegrees-site}
+  targets:
+    - https://dualdegrees.io/
+- labels: {module: http_2xx, service: warpulse-site}
+  targets:
+    - https://warpulse.com/
+    - https://support.warpulse.com/
+- labels: {module: http_2xx, service: vaulterm-site}
+  targets:
+    - https://vaulterm.com/
+- labels: {module: http_405, service: vaulterm-waitlist}
+  targets:
+    - https://vaulterm.com/api/waitlist
+- labels: {module: http_2xx, service: vaulterm-updates}
+  targets:
+    - https://github.com/xeonatlas/termora-releases/releases/latest/download/latest.yml
+- labels: {module: http_any_answer, service: zelara}
+  targets:
+    - https://www.zelara.chat/
+    - https://api.zelara.chat/
