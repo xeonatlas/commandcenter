@@ -1,0 +1,70 @@
+# Handoff: pick up phase 1 locally
+
+Branch: `feat/phase1-core-i5znpv` (no PR yet; do not open one unless asked).
+Plan: `docs/superpowers/plans/2026-09-27-command-center-phase1-core.md`
+Spec: `docs/superpowers/specs/2026-09-27-command-center-design.md`
+
+## Where it stands
+
+- Tasks 1 to 7 are done and committed (T1 d3c1208, T2 33ba90e, T3 79fdb76,
+  T4 d6b913b, T5 9db832b, T6 eb0603c, T7 cef63c5). `make check` is green:
+  37 pytest, promtool rule tests, blackbox config check, amtool routes
+  (7 cases), `dashboards: 3 clean`.
+- Tasks 8 (bootstrap the Pi, first deploy) and 9 (fire drill) are NOT done.
+  They need the command-center Pi at 10.0.0.249 on the home LAN, which the
+  cloud session could not reach. Run them from the workstation.
+
+## First steps on the workstation
+
+```bash
+git fetch origin && git checkout feat/phase1-core-i5znpv
+make check          # builds .venv, fetches .tools/ if Docker is not usable
+```
+
+Then work Task 8 and Task 9 in the plan, in order.
+
+## Open request from the user
+
+The user asked to make the Task 8/9 actions simpler to run from their PC.
+Suggested shape, before starting Task 8:
+
+- `scripts/setup-pi.sh` (workstation) that walks Task 8 end to end: stage the
+  repo on the Pi, run the bootstrap over `/usr/bin/ssh -t` (the user types the
+  sudo password), verify it, create `.env` from `.env.example` if missing and
+  open it in `nano` over `ssh -t`, run `make deploy`, then print the target and
+  alert checks from Task 8 Step 7. Pause with a prompt at each point where the
+  user has to act (accounts, `.env`, confirmations).
+- `scripts/drill.sh` (workstation) for Task 9, one subcommand per step, and
+  make targets `make setup-pi` / `make drill`.
+- Keep `tests/test_scripts.py` passing: every new `.sh` must parse and must
+  use `/usr/bin/ssh`, never bare `ssh` (plain `ssh` is kitty's kitten on the
+  workstation). Even prose like "ssh session" inside code trips the guard.
+
+## Rules that still apply
+
+- Never read or print `.env` values; never run `sudo` on the Pi yourself.
+- Commit trailer: `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
+- After Task 9: whole-branch review, then finishing-a-development-branch. The
+  final report must list "Rulings I made" and "Deferred minors".
+
+## Rulings made so far
+
+- `.superpowers/` and `.tools/` are git-ignored; `deploy.sh` rsync excludes
+  both and `test_scripts.py` copytree ignores both.
+- No Docker socket on a workstation: the Makefile uses Docker when
+  `docker info` works, else sha256-verified release binaries in `.tools/` via
+  `scripts/fetch_tools.sh`.
+- Disk-forecast rule tests sample every 1m (10m fell outside the 5m lookback).
+- Alertmanager template header reworded to avoid a literal placeholder.
+- `bootstrap-pi.sh` final message now reads "Log out and back in so $owner
+  picks up the docker group." (the plan's Task 8 Step 2 expected text is
+  outdated on this point).
+
+## Deferred minors (check during Task 8)
+
+- Containers run as `1000:1000` and `pi-throttled.service` runs as `atlas`.
+  Confirm `/usr/bin/ssh command-center id -u atlas` prints 1000; otherwise
+  Alertmanager cannot read the 0600 rendered config and the data dirs are not
+  writable. Fix in `compose.yml` before the first deploy if it differs.
+- Grafana listens on 0.0.0.0:3000 (LAN reachable by design, password only).
+- The probes dashboard "HTTP status" panel has no colour thresholds.
