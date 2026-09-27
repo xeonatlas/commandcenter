@@ -18,6 +18,8 @@ Everything is in this repo; nothing is edited in Grafana.
 ```bash
 make check    # unit tests, promtool rule tests, amtool routing tests, dashboard lint
 make deploy   # check, rsync to the Pi, validate again there, converge, reload
+make setup-pi # first time only: bootstrap a fresh Pi, fill in .env, deploy, verify
+make drill    # fire drill: real pages, inhibitions, host down, dead-man's switch
 ```
 
 - **Add a probe:** add the URL under the right `service` in

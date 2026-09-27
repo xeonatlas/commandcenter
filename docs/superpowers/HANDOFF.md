@@ -62,9 +62,7 @@ Suggested shape, before starting Task 8:
 
 ## Deferred minors (check during Task 8)
 
-- Containers run as `1000:1000` and `pi-throttled.service` runs as `atlas`.
-  Confirm `/usr/bin/ssh command-center id -u atlas` prints 1000; otherwise
-  Alertmanager cannot read the 0600 rendered config and the data dirs are not
-  writable. Fix in `compose.yml` before the first deploy if it differs.
+- Containers run as `1000:1000`: confirmed 2026-09-27, `atlas` is uid 1000 on
+  the Pi (Debian 13, aarch64). `setup-pi.sh` re-checks it.
 - Grafana listens on 0.0.0.0:3000 (LAN reachable by design, password only).
 - The probes dashboard "HTTP status" panel has no colour thresholds.

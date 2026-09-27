@@ -22,7 +22,7 @@ BLACKBOX  := .tools/blackbox_exporter
 TOOLS     := .tools/promtool
 endif
 
-.PHONY: check test check-configs check-prom check-blackbox check-am check-dashboards deploy
+.PHONY: check test check-configs check-prom check-blackbox check-am check-dashboards deploy setup-pi drill
 
 check: test check-configs
 
@@ -56,3 +56,9 @@ check-dashboards:
 
 deploy:
 	scripts/deploy.sh
+
+setup-pi:
+	scripts/setup-pi.sh
+
+drill:
+	scripts/drill.sh
