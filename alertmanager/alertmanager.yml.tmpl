@@ -1,0 +1,71 @@
+# Rendered on the Pi by scripts/render_config.py from .env. The dollar-brace
+# placeholders are secrets; everything else is plain Alertmanager config.
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: pushover-warning
+  group_by: [alertname, service, host]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    # One webhook a minute to healthchecks.io; its silence is the page.
+    - matchers: ['alertname="Watchdog"']
+      receiver: heartbeat
+      group_wait: 0s
+      group_interval: 1m
+      repeat_interval: 1m
+    # Fire drills exercise routing and inhibition without paging.
+    - matchers: ['drill="true"']
+      receiver: blackhole
+    - matchers: ['severity="critical"']
+      receiver: pushover-critical
+      repeat_interval: 1h
+    - matchers: ['severity="warning"']
+      receiver: pushover-warning
+    - matchers: ['severity="info"']
+      receiver: blackhole
+
+inhibit_rules:
+  # One home-connection warning instead of a page per site.
+  - source_matchers: ['alertname="HomeConnectivityLost"']
+    target_matchers: ['alertname="ProbeDown"']
+  # A host that cannot be scraped says nothing reliable about anything on it.
+  - source_matchers: ['alertname="HostDown"']
+    target_matchers: ['alertname!="HostDown"']
+    equal: [host]
+
+receivers:
+  - name: heartbeat
+    webhook_configs:
+      - url: '${HEALTHCHECKS_PING_URL}'
+        send_resolved: false
+
+  - name: pushover-critical
+    pushover_configs:
+      - user_key: '${PUSHOVER_USER_KEY}'
+        token: '${PUSHOVER_APP_TOKEN}'
+        priority: '2'
+        retry: 1m
+        expire: 1h
+        title: '🔴 {{ .CommonLabels.alertname }}{{ if eq .Status "resolved" }} resolved{{ end }}'
+        message: |-
+          {{ range .Alerts }}{{ .Annotations.summary }}
+          {{ end }}
+        url: 'http://10.0.0.249:3000/d/command-center'
+        send_resolved: true
+
+  - name: pushover-warning
+    pushover_configs:
+      - user_key: '${PUSHOVER_USER_KEY}'
+        token: '${PUSHOVER_APP_TOKEN}'
+        priority: '0'
+        title: '🟡 {{ .CommonLabels.alertname }}{{ if eq .Status "resolved" }} resolved{{ end }}'
+        message: |-
+          {{ range .Alerts }}{{ .Annotations.summary }}
+          {{ end }}
+        url: 'http://10.0.0.249:3000/d/command-center'
+        send_resolved: true
+
+  - name: blackhole
