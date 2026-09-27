@@ -1,0 +1,111 @@
+{
+  "uid": "hosts",
+  "title": "Hosts",
+  "tags": ["command-center"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "1m",
+  "time": {"from": "now-24h", "to": "now"},
+  "templating": {
+    "list": [
+      {
+        "name": "host",
+        "label": "Host",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "prometheus"},
+        "definition": "label_values(node_uname_info, host)",
+        "query": {"query": "label_values(node_uname_info, host)", "refId": "host"},
+        "includeAll": true,
+        "multi": true,
+        "refresh": 2,
+        "current": {"text": "All", "value": "$__all"}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "CPU saturation (load per core)",
+      "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "node_load5{host=~\"$host\"} / on (host) count by (host) (node_cpu_seconds_total{mode=\"idle\", host=~\"$host\"})",
+          "legendFormat": "{{host}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Memory available",
+      "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "100 * node_memory_MemAvailable_bytes{host=~\"$host\"} / node_memory_MemTotal_bytes{host=~\"$host\"}",
+          "legendFormat": "{{host}}"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}, "overrides": []}
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Filesystem space available",
+      "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "100 * node_filesystem_avail_bytes{host=~\"$host\", fstype!~\"tmpfs|ramfs|squashfs|overlay\"} / node_filesystem_size_bytes{host=~\"$host\", fstype!~\"tmpfs|ramfs|squashfs|overlay\"}",
+          "legendFormat": "{{host}} {{mountpoint}}"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}, "overrides": []}
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Disk write latency",
+      "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "rate(node_disk_write_time_seconds_total{host=~\"$host\"}[5m]) / rate(node_disk_writes_completed_total{host=~\"$host\"}[5m])",
+          "legendFormat": "{{host}} {{device}}"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []}
+    },
+    {
+      "id": 5,
+      "type": "state-timeline",
+      "title": "Pi throttling (now)",
+      "gridPos": {"x": 0, "y": 16, "w": 24, "h": 7},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "expr": "pi_throttle_state{host=~\"$host\", when=\"now\"}",
+          "legendFormat": "{{host}} {{condition}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [{"type": "value", "options": {"0": {"text": "ok", "color": "green"}, "1": {"text": "ACTIVE", "color": "red"}}}]
+        },
+        "overrides": []
+      }
+    }
+  ]
+}
