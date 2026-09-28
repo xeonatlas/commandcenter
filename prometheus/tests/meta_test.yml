@@ -32,6 +32,20 @@ tests:
           - exp_labels: {severity: warning, job: blackbox}
             exp_annotations: {summary: "2 blackbox target(s) are not answering scrapes"}
 
+  - name: a gateway target down warns with its host, so HostDown can mute it
+    interval: 1m
+    input_series:
+      - series: 'up{job="postgres",instance="10.98.0.12:9900",host="lightning-b"}'
+        values: '0x10'
+      - series: 'up{job="postgres",instance="10.98.0.11:9900",host="lightning-a"}'
+        values: '1x10'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: ScrapeTargetDown
+        exp_alerts:
+          - exp_labels: {severity: warning, job: postgres, host: lightning-b}
+            exp_annotations: {summary: "1 postgres target(s) on lightning-b are not answering scrapes"}
+
   - name: rule evaluation failures warn
     interval: 1m
     input_series:

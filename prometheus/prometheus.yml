@@ -29,6 +29,28 @@ scrape_configs:
     file_sd_configs:
       - files: [targets/node.yml]
 
+  # Each host's metrics gateway (:9900), one job per exporter. Targets come from
+  # inventory/hosts.yml via scripts/render_inventory.py.
+  - job_name: postgres
+    metrics_path: /metrics/postgres
+    file_sd_configs:
+      - files: [targets/postgres.yml]
+
+  - job_name: patroni
+    metrics_path: /metrics/patroni
+    file_sd_configs:
+      - files: [targets/patroni.yml]
+
+  - job_name: etcd
+    metrics_path: /metrics/etcd
+    file_sd_configs:
+      - files: [targets/etcd.yml]
+
+  - job_name: haproxy
+    metrics_path: /metrics/haproxy
+    file_sd_configs:
+      - files: [targets/haproxy.yml]
+
   - job_name: blackbox
     scrape_interval: 60s
     scrape_timeout: 20s

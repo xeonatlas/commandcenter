@@ -1,11 +1,7 @@
 # Rendered from inventory/hosts.yml by scripts/render_inventory.py; do not edit.
-- labels: {host: command-center, role: command-center}
-  targets: ['127.0.0.1:9100']
 - labels: {host: lightning-a, hostname: ns104901, role: lightning}
-  targets: ['10.98.0.11:9100']
+  targets: ['10.98.0.11:9900']
 - labels: {host: lightning-b, hostname: ns107120, role: lightning}
-  targets: ['10.98.0.12:9100']
-- labels: {host: x3, hostname: ns572860, role: x3-gateway}
-  targets: ['10.98.0.14:9100']
+  targets: ['10.98.0.12:9900']
 - labels: {host: lapi-witness, hostname: LAPI-witness, role: witness}
-  targets: ['10.0.0.205:9100']
+  targets: ['10.0.0.205:9900']

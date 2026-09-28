@@ -9,14 +9,15 @@ groups:
         annotations:
           summary: "Always firing; proves the alerting pipeline is alive."
 
-      # node targets are HostDown's; one alert per job, not per probe.
+      # node targets are HostDown's; one alert per job and host, not per probe. The host
+      # label lets HostDown mute a down host's gateway targets.
       - alert: ScrapeTargetDown
-        expr: count by (job) (up{job!="node"} == 0) > 0
+        expr: count by (job, host) (up{job!="node"} == 0) > 0
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "{{ $value }} {{ $labels.job }} target(s) are not answering scrapes"
+          summary: "{{ $value }} {{ $labels.job }} target(s){{ if $labels.host }} on {{ $labels.host }}{{ end }} are not answering scrapes"
 
       - alert: PrometheusRuleFailures
         expr: increase(prometheus_rule_evaluation_failures_total[10m]) > 0
