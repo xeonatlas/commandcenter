@@ -15,7 +15,7 @@ docker compose up -d --remove-orphans
 
 wait_ready() {
   for _ in $(seq 1 30); do
-    curl -fsS -o /dev/null "$1" && return 0
+    curl -fs -o /dev/null "$1" && return 0   # quiet: early refusals are expected
     sleep 2
   done
   echo "apply: $1 not ready after 60s" >&2
