@@ -21,5 +21,9 @@ Notes:
 - The Pi rebooted unprompted at about 20:22, mid-drill. Supply read 5.18 V with no
   under-voltage since boot and `power_reset` 0 (a power-on reset); the journal is
   volatile, so the cause is unknown. Watch for a repeat.
+- Later that night HomeConnectivityLost was widened to mute HostDown for the servers
+  the Pi scrapes over wg-mon (they ride the same home line). `drill.sh inhibit` re-run
+  after the deploy: HostDown on a remote host suppressed, and it still mutes its own
+  host's alerts. Pass.
 
 Run again after phase 4, and after any change to routing or receivers.

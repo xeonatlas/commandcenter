@@ -63,14 +63,15 @@ do_inhibit() {
   out=$(on_pi 'add() { docker compose exec -T alertmanager amtool --alertmanager.url=http://127.0.0.1:9093 alert add drill=true "$@"; } && add alertname=HomeConnectivityLost severity=warning && add alertname=ProbeDown severity=critical service=drill-site && add alertname=HostDown severity=critical host=drill-host && add alertname=MemoryPressure severity=warning host=drill-host && add alertname=MemoryPressure severity=warning host=other-host && sleep 5 && curl -s "http://127.0.0.1:9093/api/v2/alerts?filter=drill=%22true%22"' \
     | python3 -c 'import json,sys; [print(a["labels"]["alertname"], a["labels"].get("host", a["labels"].get("service", "")), a["status"]["state"]) for a in sorted(json.load(sys.stdin), key=lambda a: (a["labels"]["alertname"], a["labels"].get("host", "")))]')
   echo "$out"
-  expected=$'HomeConnectivityLost  active\nHostDown drill-host active\nMemoryPressure drill-host suppressed\nMemoryPressure other-host active\nProbeDown drill-site suppressed'
-  if grep -qx 'ProbeDown drill-site suppressed' <<<"$out" && grep -qx 'HomeConnectivityLost  active' <<<"$out"; then
-    record "HomeConnectivityLost inhibits ProbeDown" pass
+  # HostDown drill-host is itself muted by HomeConnectivityLost, yet still mutes its own host.
+  expected=$'HomeConnectivityLost  active\nHostDown drill-host suppressed\nMemoryPressure drill-host suppressed\nMemoryPressure other-host active\nProbeDown drill-site suppressed'
+  if grep -qx 'ProbeDown drill-site suppressed' <<<"$out" && grep -qx 'HostDown drill-host suppressed' <<<"$out" \
+      && grep -qx 'HomeConnectivityLost  active' <<<"$out"; then
+    record "HomeConnectivityLost inhibits ProbeDown and remote HostDown" pass
   else
-    record "HomeConnectivityLost inhibits ProbeDown" "fail: $(grep -E '^(ProbeDown|HomeConnectivityLost) ' <<<"$out" | paste -sd ';')"
+    record "HomeConnectivityLost inhibits ProbeDown and remote HostDown" "fail: $(grep -E '^(ProbeDown|HostDown|HomeConnectivityLost) ' <<<"$out" | paste -sd ';')"
   fi
-  if grep -qx 'MemoryPressure drill-host suppressed' <<<"$out" && grep -qx 'MemoryPressure other-host active' <<<"$out" \
-      && grep -qx 'HostDown drill-host active' <<<"$out"; then
+  if grep -qx 'MemoryPressure drill-host suppressed' <<<"$out" && grep -qx 'MemoryPressure other-host active' <<<"$out"; then
     record "HostDown inhibits same-host alerts only" pass
   else
     record "HostDown inhibits same-host alerts only" "fail: $(grep -E '^(HostDown|MemoryPressure) ' <<<"$out" | paste -sd ';')"
@@ -119,7 +120,7 @@ do_record() {
     "Critical page (emergency, through Do Not Disturb, repeats until acknowledged)"
     "Warning page (quiet)"
     "Resolved messages"
-    "HomeConnectivityLost inhibits ProbeDown"
+    "HomeConnectivityLost inhibits ProbeDown and remote HostDown"
     "HostDown inhibits same-host alerts only"
     "Real HostDown (node-exporter stopped 4 min)"
     "Dead-man's switch (Alertmanager stopped 7 min)"

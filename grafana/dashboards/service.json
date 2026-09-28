@@ -1140,26 +1140,14 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "red",
-                "value": null
-              },
-              {
                 "color": "green",
-                "value": 200
-              },
-              {
-                "color": "orange",
-                "value": 400
-              },
-              {
-                "color": "red",
-                "value": 500
+                "value": null
               }
             ]
           },
           "decimals": 0,
           "color": {
-            "mode": "thresholds"
+            "mode": "fixed"
           }
         },
         "overrides": []

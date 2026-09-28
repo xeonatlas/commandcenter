@@ -1,7 +1,7 @@
 # Command Center
 
 Grafana + Prometheus on the `command-center` Pi (10.0.0.249), watching every
-service from outside and, from phase 2, from inside. Design:
+service from outside and each server's disks, CPU, memory and systemd units from inside. Design:
 `docs/superpowers/specs/2026-09-27-command-center-design.md`.
 
 ## Using it
@@ -26,6 +26,7 @@ make check    # unit tests, promtool rule tests, amtool routing tests, dashboard
 make deploy   # check, rsync to the Pi, validate again there, converge, reload
 make setup-pi # first time only: bootstrap a fresh Pi, fill in .env, deploy, verify
 make drill    # fire drill: real pages, inhibitions, host down, dead-man's switch
+make enroll   # put the servers in inventory/hosts.yml on the Machine dashboard
 ```
 
 - **Add a probe:** add the URL under the right `service` (and `product`) in
@@ -33,6 +34,10 @@ make drill    # fire drill: real pages, inhibitions, host down, dead-man's switc
   `http_405` from `blackbox/blackbox.yml`.
 - **Change a dashboard:** edit `scripts/build_dashboards.py`, run `make dashboards`, and
   commit both; `make check` fails if the JSON and the generator disagree.
+- **Watch another server:** add a line to `inventory/hosts.yml` (friendly `host` name,
+  SSH alias, a free `tunnel_ip` in 10.98.0.0/24, public `endpoint`), then `make enroll`.
+  It needs passwordless sudo on the server and your Pi sudo password once. The server gets
+  node_exporter on loopback and its end of the `wg-mon` tunnel; port 9100 answers the Pi only.
 - **Add an alert:** add the rule in `prometheus/rules/`, with a firing and a
   non-firing case in `prometheus/tests/`.
 - **Secrets** live only in `/opt/command-center/.env` on the Pi (see

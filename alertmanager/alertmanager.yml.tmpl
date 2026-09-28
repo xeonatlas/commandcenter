@@ -28,9 +28,10 @@ route:
       receiver: blackhole
 
 inhibit_rules:
-  # One home-connection warning instead of a page per site.
+  # One home-connection warning instead of a page per site, or per server the
+  # Pi scrapes over its wg-mon tunnel (which rides the same home line).
   - source_matchers: ['alertname="HomeConnectivityLost"']
-    target_matchers: ['alertname="ProbeDown"']
+    target_matchers: ['alertname=~"ProbeDown|HostDown"', 'host!="command-center"']
   # A host that cannot be scraped says nothing reliable about anything on it.
   - source_matchers: ['alertname="HostDown"']
     target_matchers: ['alertname!="HostDown"']

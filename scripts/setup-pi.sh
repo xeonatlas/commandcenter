@@ -102,7 +102,7 @@ ts = json.load(sys.stdin)["data"]["activeTargets"]
 down = [t for t in ts if t["health"] != "up"]
 for t in down:
     print("   down:", t["labels"]["job"], t["labels"].get("instance"), t.get("lastError", ""))
-print(f"   {len(ts) - len(down)}/{len(ts)} targets up (plan expects 17)")
+print(f"   {len(ts) - len(down)}/{len(ts)} targets up")
 sys.exit(1 if down or not ts else 0)'
 }
 check_alerts() {
@@ -131,7 +131,7 @@ cat <<'EOF'
 Last checks, by you:
   - healthchecks.io shows "command-center heartbeat" as up, pings about a minute apart.
   - http://10.0.0.249:3000 accepts the admin password; the Command Center folder
-    holds three dashboards and Command Center -> Services shows every service UP.
+    holds four dashboards and the Command Center page shows every service UP.
 
 Then run the fire drill: make drill
 EOF

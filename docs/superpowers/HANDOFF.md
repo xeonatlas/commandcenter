@@ -62,6 +62,24 @@ Suggested shape, before starting Task 8:
   is in a `hostname` label.
 - The Pi's sudo password is needed only when wg-mon peers change (`hosts/pi/setup-wg-mon.sh`).
 
+## Whole-branch review, 2026-09-27 night
+
+`make check` green (48 pytest, promtool, blackbox, amtool 7 routes, 4 dashboards);
+live: 20/20 targets up, only Watchdog firing. Fixed in the review:
+
+- HomeConnectivityLost now also mutes HostDown for hosts other than command-center:
+  the servers are scraped over wg-mon, which rides the home line, so a home outage
+  would otherwise page three critical HostDowns. `drill.sh inhibit` checks it; re-run
+  live after the deploy, pass.
+- Service page "HTTP status" is neutral, not red/orange: lightning-tiles,
+  ddcloud-analytics, zelara and vaulterm-waitlist answer 4xx by design. Status says
+  what is healthy. (Closes the "no colour thresholds" deferred minor the same way.)
+- `setup-pi.sh` no longer quotes 17 targets / three dashboards; README documents
+  `make enroll` and the wg-mon arrangement.
+
+Phase 1 is finished. Next: phase 2 in the plan (Postgres/Patroni/etcd/HAProxy metrics,
+the nginx gateway, SystemdUnitFailed excluding `postgresql@16-main`).
+
 ## Found, not fixed
 
 - lightning-a: `lightning-backup.service` failed at 2026-09-27 03:00 UTC (pg_dump exit 1),
@@ -96,4 +114,8 @@ Suggested shape, before starting Task 8:
 - Containers run as `1000:1000`: confirmed 2026-09-27, `atlas` is uid 1000 on
   the Pi (Debian 13, aarch64). `setup-pi.sh` re-checks it.
 - Grafana listens on 0.0.0.0:3000 (LAN reachable by design, password only).
-- The probes dashboard "HTTP status" panel has no colour thresholds.
+- The probes dashboard "HTTP status" panel has no colour thresholds: ruled neutral on
+  purpose (see the review above).
+- HostDown for a server is critical; a wg-mon tunnel fault on the Pi alone would page
+  all three as down. Accepted: rare, and the summary names the host.
+- `setup-monitoring.sh` assumes `nft` is present (true on every Ubuntu server here).

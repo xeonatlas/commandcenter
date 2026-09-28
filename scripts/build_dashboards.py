@@ -371,8 +371,9 @@ def service():
            background=False, graph=True)
     b.stat("p95, 24 h", f"max(quantile_over_time(0.95, probe_duration_seconds{{{S}}}[24h]))", unit="s",
            decimals=2, thresholds=T_RESPONSE, background=False)
+    # Neutral: tiles, analytics and the waitlist answer 4xx by design; Status says what is healthy.
     b.stat("HTTP status", f"max(probe_http_status_code{{{S}}})", decimals=0,
-           thresholds=steps(RED, 200, GREEN, 400, ORANGE, 500, RED), background=False)
+           background=False, color_mode="fixed")
     b.stat("Certificate", f"min((probe_ssl_earliest_cert_expiry{{{S}}} - time()) / 86400)", unit=DAYS,
            decimals=0, thresholds=T_CERT, background=False)
     b.series("Where the time goes", phase_targets(S), stack=True, unit="s", overrides=phase_overrides(),
