@@ -182,7 +182,7 @@ class Board:
             "legend": {"showLegend": False, "displayMode": "list", "placement": "bottom"},
             "tooltip": {"mode": "single", "sort": "none"}}, custom={"fillOpacity": 80, "lineWidth": 0}, **kw)
 
-    def table(self, title, columns, by, w=24, h=8, sort=None, extra_overrides=(), hide=(), **kw):
+    def table(self, title, columns, by, w=24, h=8, sort=None, sort_desc=False, extra_overrides=(), hide=(), **kw):
         """columns: [(header, expr, field overrides)]; one row per distinct `by` labels."""
         if by[0] == "product":
             columns = [(header, with_product(expr, by[1:]), props) for header, expr, props in columns]
@@ -199,7 +199,7 @@ class Board:
                                                            "indexByName": order}}],
                         options={"showHeader": True, "cellHeight": "sm",
                                  "footer": {"show": False, "reducer": ["sum"], "fields": ""},
-                                 "sortBy": [{"displayName": sort or by[0], "desc": False}]},
+                                 "sortBy": [{"displayName": sort or by[0], "desc": sort_desc}]},
                         custom={"align": "auto", "cellOptions": {"type": "auto"},
                                 "inspect": False, "filterable": False}, **kw)
 
@@ -227,6 +227,7 @@ UP_CELL = dict(mappings=UP_DOWN, custom__cellOptions={"type": "color-background"
                custom__width=80)
 def gauge_cell(thresholds):
     return dict(unit="percentunit", decimals=1, min=0, max=1, thresholds=thresholds,
+                mappings=[{"type": "special", "options": {"match": "nan", "result": {"text": "n/a", "index": 0}}}],
                 color={"mode": "thresholds"}, custom__width=150,
                 custom__cellOptions={"type": "gauge", "mode": "basic", "valueDisplayMode": "text"})
 def text_cell(unit, thresholds, decimals=None):
@@ -450,7 +451,7 @@ def machine():
     b.stat("Root disk free", f'node_filesystem_avail_bytes{{{H}, mountpoint="/"}}', unit="bytes", decimals=1,
            thresholds=steps(RED, 2e9, ORANGE, 5e9, GREEN), background=False)
     b.stat("Load per core, 5 m",
-           f'node_load5{{{H}}} / count(node_cpu_seconds_total{{{H}, mode="idle"}})', decimals=2,
+           f'node_load5{{{H}}} / scalar(count(node_cpu_seconds_total{{{H}, mode="idle"}}))', decimals=2,
            thresholds=steps(GREEN, 0.8, ORANGE, 1.5, RED), background=False)
     b.gauge("Temperature", f"max(node_hwmon_temp_celsius{{{H}}})", unit="celsius", maxv=100, decimals=0,
             thresholds=T_TEMP)
@@ -466,6 +467,26 @@ def machine():
            background=False, color_mode="fixed")
     b.stat("Disk total", f"sum(node_filesystem_size_bytes{{{H}, {FS}}})", unit="bytes", decimals=1, w=4, h=3,
            background=False, color_mode="fixed")
+
+    b.row("Services")
+    b.stat("Failed units", f'count(node_systemd_unit_state{{{H}, state="failed"}} == 1) or vector(0)', w=4, h=8,
+           thresholds=T_DOWN_COUNT, description="Watched systemd units in the failed state.")
+    unit_states = [{"type": "value", "options": {
+        "active": {"color": GREEN, "index": 0}, "failed": {"color": RED, "index": 1},
+        "activating": {"color": ORANGE, "index": 2}, "deactivating": {"color": ORANGE, "index": 3},
+        "inactive": {"color": GREY, "index": 4, "text": "inactive (idle between runs)"}}}]
+    # Value ranks the state (failed 3, changing 2, active 1, idle 0) so failures sort first.
+    rank = " or ".join(f'{r} * max by (name, state) (node_systemd_unit_state{{{H}, state=~"{st}"}} == 1)'
+                       for r, st in ((3, "failed"), (2, "activating|deactivating|reloading"),
+                                     (1, "active"), (0, "inactive")))
+    b.table("Watched units", [("Rank", rank, dict(custom__hidden=True))],
+            by=["name", "state"], w=20, h=8, sort="Rank", sort_desc=True,
+            extra_overrides=[override("name", displayName="Unit"),
+                             override("state", displayName="State", mappings=unit_states,
+                                      custom__cellOptions={"type": "color-text"})],
+            no_value="No units watched on this machine",
+            description="The apps, database, HA and tunnel units named in the design. "
+                        "Timer-driven jobs sit inactive between runs; failed means the last run failed.")
 
     b.row("Disk space")
     b.bars("Used, per filesystem",
@@ -487,8 +508,11 @@ def machine():
         ("Inodes used", f"max by (mountpoint, fstype, device) (1 - node_filesystem_files_free{{{H}, {FS}}} / node_filesystem_files{{{H}, {FS}}})",
          gauge_cell(T_USED)),
     ], by=["mountpoint", "fstype", "device"], w=16, h=8,
-        extra_overrides=[override("mountpoint", displayName="Mount"), override("fstype", displayName="Type"),
-                         override("device", displayName="Device")],
+        extra_overrides=[override("mountpoint", displayName="Mount"),
+                         override("fstype", displayName="Type", custom__width=70),
+                         override("device", displayName="Device", custom__width=130),
+                         override("Size", custom__width=90), override("Free", custom__width=90),
+                         override("Full in", custom__width=110)],
         description="Full in: the last 6 hours' trend projected forward. 'not filling' means over a year away, or shrinking.")
     b.series("Free space over time", [q(f"node_filesystem_avail_bytes{{{H}, {FS}}}", "{{mountpoint}}")],
              w=24, h=7, unit="bytes")

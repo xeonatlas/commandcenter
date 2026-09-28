@@ -468,7 +468,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "node_load5{host=\"$host\"} / count(node_cpu_seconds_total{host=\"$host\", mode=\"idle\"})",
+          "expr": "node_load5{host=\"$host\"} / scalar(count(node_cpu_seconds_total{host=\"$host\", mode=\"idle\"}))",
           "legendFormat": "__auto",
           "instant": true,
           "range": false,
@@ -988,7 +988,7 @@
     },
     {
       "type": "row",
-      "title": "Disk space",
+      "title": "Services",
       "collapsed": false,
       "panels": [],
       "gridPos": {
@@ -1000,6 +1000,254 @@
       "id": 15
     },
     {
+      "type": "stat",
+      "title": "Failed units",
+      "description": "Watched systemd units in the failed state.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 4,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "count(node_systemd_unit_state{host=\"$host\", state=\"failed\"} == 1) or vector(0)",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "id": 16
+    },
+    {
+      "type": "table",
+      "title": "Watched units",
+      "description": "The apps, database, HA and tunnel units named in the design. Timer-driven jobs sit inactive between runs; failed means the last run failed.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 4,
+        "y": 9,
+        "w": 20,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "3 * max by (name, state) (node_systemd_unit_state{host=\"$host\", state=~\"failed\"} == 1) or 2 * max by (name, state) (node_systemd_unit_state{host=\"$host\", state=~\"activating|deactivating|reloading\"} == 1) or 1 * max by (name, state) (node_systemd_unit_state{host=\"$host\", state=~\"active\"} == 1) or 0 * max by (name, state) (node_systemd_unit_state{host=\"$host\", state=~\"inactive\"} == 1)",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "No units watched on this machine"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Rank"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "name"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Unit"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "state"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "State"
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "active": {
+                        "color": "green",
+                        "index": 0
+                      },
+                      "failed": {
+                        "color": "red",
+                        "index": 1
+                      },
+                      "activating": {
+                        "color": "orange",
+                        "index": 2
+                      },
+                      "deactivating": {
+                        "color": "orange",
+                        "index": 3
+                      },
+                      "inactive": {
+                        "color": "text",
+                        "index": 4,
+                        "text": "inactive (idle between runs)"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        },
+        "sortBy": [
+          {
+            "displayName": "Rank",
+            "desc": true
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "Value #A": "Rank"
+            },
+            "indexByName": {
+              "name": 0,
+              "state": 1,
+              "Rank": 2
+            }
+          }
+        }
+      ],
+      "id": 17
+    },
+    {
+      "type": "row",
+      "title": "Disk space",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 17,
+        "w": 24,
+        "h": 1
+      },
+      "id": 18
+    },
+    {
       "type": "bargauge",
       "title": "Used, per filesystem",
       "description": "",
@@ -1009,7 +1257,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 9,
+        "y": 18,
         "w": 8,
         "h": 8
       },
@@ -1081,7 +1329,7 @@
           "showLegend": false
         }
       },
-      "id": 16
+      "id": 19
     },
     {
       "type": "table",
@@ -1093,7 +1341,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 9,
+        "y": 18,
         "w": 16,
         "h": 8
       },
@@ -1256,6 +1504,21 @@
                 }
               },
               {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "special",
+                    "options": {
+                      "match": "nan",
+                      "result": {
+                        "text": "n/a",
+                        "index": 0
+                      }
+                    }
+                  }
+                ]
+              },
+              {
                 "id": "color",
                 "value": {
                   "mode": "thresholds"
@@ -1382,6 +1645,21 @@
                 }
               },
               {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "special",
+                    "options": {
+                      "match": "nan",
+                      "result": {
+                        "text": "n/a",
+                        "index": 0
+                      }
+                    }
+                  }
+                ]
+              },
+              {
                 "id": "color",
                 "value": {
                   "mode": "thresholds"
@@ -1422,6 +1700,10 @@
               {
                 "id": "displayName",
                 "value": "Type"
+              },
+              {
+                "id": "custom.width",
+                "value": 70
               }
             ]
           },
@@ -1434,6 +1716,46 @@
               {
                 "id": "displayName",
                 "value": "Device"
+              },
+              {
+                "id": "custom.width",
+                "value": 130
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Size"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Free"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Full in"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 110
               }
             ]
           }
@@ -1487,7 +1809,7 @@
           }
         }
       ],
-      "id": 17
+      "id": 20
     },
     {
       "type": "timeseries",
@@ -1499,7 +1821,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 17,
+        "y": 26,
         "w": 24,
         "h": 7
       },
@@ -1568,7 +1890,7 @@
           "sort": "desc"
         }
       },
-      "id": 18
+      "id": 21
     },
     {
       "type": "row",
@@ -1577,11 +1899,11 @@
       "panels": [],
       "gridPos": {
         "x": 0,
-        "y": 24,
+        "y": 33,
         "w": 24,
         "h": 1
       },
-      "id": 19
+      "id": 22
     },
     {
       "type": "timeseries",
@@ -1593,7 +1915,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 25,
+        "y": 34,
         "w": 12,
         "h": 9
       },
@@ -1663,7 +1985,7 @@
           "sort": "desc"
         }
       },
-      "id": 20
+      "id": 23
     },
     {
       "type": "timeseries",
@@ -1675,7 +1997,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 25,
+        "y": 34,
         "w": 12,
         "h": 9
       },
@@ -1800,7 +2122,7 @@
           "sort": "desc"
         }
       },
-      "id": 21
+      "id": 24
     },
     {
       "type": "timeseries",
@@ -1812,7 +2134,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 34,
+        "y": 43,
         "w": 12,
         "h": 9
       },
@@ -1878,7 +2200,7 @@
           "sort": "desc"
         }
       },
-      "id": 22
+      "id": 25
     },
     {
       "type": "timeseries",
@@ -1890,7 +2212,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 34,
+        "y": 43,
         "w": 12,
         "h": 9
       },
@@ -1998,7 +2320,7 @@
           "sort": "desc"
         }
       },
-      "id": 23
+      "id": 26
     },
     {
       "type": "row",
@@ -2007,11 +2329,11 @@
       "panels": [],
       "gridPos": {
         "x": 0,
-        "y": 43,
+        "y": 52,
         "w": 24,
         "h": 1
       },
-      "id": 24
+      "id": 27
     },
     {
       "type": "timeseries",
@@ -2023,7 +2345,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 44,
+        "y": 53,
         "w": 12,
         "h": 9
       },
@@ -2156,7 +2478,7 @@
           "sort": "desc"
         }
       },
-      "id": 25
+      "id": 28
     },
     {
       "type": "timeseries",
@@ -2168,7 +2490,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 44,
+        "y": 53,
         "w": 12,
         "h": 9
       },
@@ -2285,7 +2607,7 @@
           "sort": "desc"
         }
       },
-      "id": 26
+      "id": 29
     },
     {
       "type": "row",
@@ -2294,11 +2616,11 @@
       "panels": [],
       "gridPos": {
         "x": 0,
-        "y": 53,
+        "y": 62,
         "w": 24,
         "h": 1
       },
-      "id": 27
+      "id": 30
     },
     {
       "type": "timeseries",
@@ -2310,7 +2632,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 54,
+        "y": 63,
         "w": 12,
         "h": 9
       },
@@ -2388,7 +2710,7 @@
           "sort": "desc"
         }
       },
-      "id": 28
+      "id": 31
     },
     {
       "type": "timeseries",
@@ -2400,7 +2722,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 54,
+        "y": 63,
         "w": 12,
         "h": 9
       },
@@ -2478,7 +2800,7 @@
           "sort": "desc"
         }
       },
-      "id": 29
+      "id": 32
     },
     {
       "type": "timeseries",
@@ -2490,7 +2812,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 63,
+        "y": 72,
         "w": 12,
         "h": 9
       },
@@ -2560,7 +2882,7 @@
           "sort": "desc"
         }
       },
-      "id": 30
+      "id": 33
     },
     {
       "type": "timeseries",
@@ -2572,7 +2894,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 63,
+        "y": 72,
         "w": 12,
         "h": 9
       },
@@ -2650,7 +2972,7 @@
           "sort": "desc"
         }
       },
-      "id": 31
+      "id": 34
     },
     {
       "type": "row",
@@ -2659,11 +2981,11 @@
       "panels": [],
       "gridPos": {
         "x": 0,
-        "y": 72,
+        "y": 81,
         "w": 24,
         "h": 1
       },
-      "id": 32
+      "id": 35
     },
     {
       "type": "timeseries",
@@ -2675,7 +2997,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 73,
+        "y": 82,
         "w": 12,
         "h": 9
       },
@@ -2753,7 +3075,7 @@
           "sort": "desc"
         }
       },
-      "id": 33
+      "id": 36
     },
     {
       "type": "timeseries",
@@ -2765,7 +3087,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 73,
+        "y": 82,
         "w": 12,
         "h": 9
       },
@@ -2861,7 +3183,7 @@
           "sort": "desc"
         }
       },
-      "id": 34
+      "id": 37
     },
     {
       "type": "timeseries",
@@ -2873,7 +3195,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 82,
+        "y": 91,
         "w": 12,
         "h": 9
       },
@@ -2950,7 +3272,7 @@
           "sort": "desc"
         }
       },
-      "id": 35
+      "id": 38
     },
     {
       "type": "timeseries",
@@ -2962,7 +3284,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 82,
+        "y": 91,
         "w": 12,
         "h": 9
       },
@@ -3040,7 +3362,7 @@
           "sort": "desc"
         }
       },
-      "id": 36
+      "id": 39
     },
     {
       "type": "row",
@@ -3049,11 +3371,11 @@
       "panels": [],
       "gridPos": {
         "x": 0,
-        "y": 91,
+        "y": 100,
         "w": 24,
         "h": 1
       },
-      "id": 37
+      "id": 40
     },
     {
       "type": "timeseries",
@@ -3065,7 +3387,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 92,
+        "y": 101,
         "w": 8,
         "h": 9
       },
@@ -3138,7 +3460,7 @@
           "sort": "desc"
         }
       },
-      "id": 38
+      "id": 41
     },
     {
       "type": "state-timeline",
@@ -3150,7 +3472,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 92,
+        "y": 101,
         "w": 8,
         "h": 8
       },
@@ -3223,7 +3545,7 @@
           "sort": "none"
         }
       },
-      "id": 39
+      "id": 42
     },
     {
       "type": "timeseries",
@@ -3235,7 +3557,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 92,
+        "y": 101,
         "w": 8,
         "h": 9
       },
@@ -3300,7 +3622,7 @@
           "sort": "desc"
         }
       },
-      "id": 40
+      "id": 43
     },
     {
       "type": "timeseries",
@@ -3312,7 +3634,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 101,
+        "y": 110,
         "w": 8,
         "h": 9
       },
@@ -3385,7 +3707,7 @@
           "sort": "desc"
         }
       },
-      "id": 41
+      "id": 44
     },
     {
       "type": "timeseries",
@@ -3397,7 +3719,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 101,
+        "y": 110,
         "w": 8,
         "h": 9
       },
@@ -3471,7 +3793,7 @@
           "sort": "desc"
         }
       },
-      "id": 42
+      "id": 45
     },
     {
       "type": "timeseries",
@@ -3483,7 +3805,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 101,
+        "y": 110,
         "w": 8,
         "h": 9
       },
@@ -3547,7 +3869,7 @@
           "sort": "desc"
         }
       },
-      "id": 43
+      "id": 46
     }
   ]
 }

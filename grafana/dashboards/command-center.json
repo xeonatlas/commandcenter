@@ -1418,6 +1418,21 @@
                 }
               },
               {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "special",
+                    "options": {
+                      "match": "nan",
+                      "result": {
+                        "text": "n/a",
+                        "index": 0
+                      }
+                    }
+                  }
+                ]
+              },
+              {
                 "id": "color",
                 "value": {
                   "mode": "thresholds"
@@ -1480,6 +1495,21 @@
                 }
               },
               {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "special",
+                    "options": {
+                      "match": "nan",
+                      "result": {
+                        "text": "n/a",
+                        "index": 0
+                      }
+                    }
+                  }
+                ]
+              },
+              {
                 "id": "color",
                 "value": {
                   "mode": "thresholds"
@@ -1540,6 +1570,21 @@
                     }
                   ]
                 }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "special",
+                    "options": {
+                      "match": "nan",
+                      "result": {
+                        "text": "n/a",
+                        "index": 0
+                      }
+                    }
+                  }
+                ]
               },
               {
                 "id": "color",
@@ -1618,6 +1663,21 @@
                     }
                   ]
                 }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "special",
+                    "options": {
+                      "match": "nan",
+                      "result": {
+                        "text": "n/a",
+                        "index": 0
+                      }
+                    }
+                  }
+                ]
               },
               {
                 "id": "color",

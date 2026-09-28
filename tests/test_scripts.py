@@ -8,7 +8,7 @@ import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
-SCRIPTS = sorted((ROOT / "scripts").glob("*.sh"))
+SCRIPTS = sorted([*(ROOT / "scripts").glob("*.sh"), *(ROOT / "hosts").glob("**/*.sh")])
 
 
 @pytest.mark.parametrize("script", SCRIPTS, ids=lambda p: p.name)

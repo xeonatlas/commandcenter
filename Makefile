@@ -22,7 +22,7 @@ BLACKBOX  := .tools/blackbox_exporter
 TOOLS     := .tools/promtool
 endif
 
-.PHONY: check test check-configs check-prom check-blackbox check-am check-dashboards dashboards deploy setup-pi drill
+.PHONY: check test check-configs check-prom check-blackbox check-am check-dashboards dashboards inventory enroll deploy setup-pi drill
 
 check: test check-configs
 
@@ -66,3 +66,10 @@ setup-pi:
 
 drill:
 	scripts/drill.sh
+
+# Machines watched from inside: edit inventory/hosts.yml, then enroll (renders, sets up, deploys).
+inventory:
+	python3 scripts/render_inventory.py
+
+enroll:
+	scripts/enroll-hosts.sh
