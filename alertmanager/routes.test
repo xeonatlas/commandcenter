@@ -1,0 +1,8 @@
+# labels => receiver they must reach. Checked by scripts/check_routes.sh.
+alertname=Watchdog severity=none => heartbeat
+alertname=ProbeDown severity=critical service=ddcloud => pushover-critical
+alertname=HostDown severity=critical host=command-center => pushover-critical
+alertname=CertExpiringSoon severity=warning service=vaulterm-site => pushover-warning
+alertname=Anything severity=info => blackhole
+alertname=ProbeDown severity=critical drill=true => blackhole
+alertname=RuleWithoutSeverity => pushover-warning

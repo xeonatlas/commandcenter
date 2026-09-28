@@ -1,0 +1,139 @@
+rule_files:
+  - ../rules/hosts.yml
+
+evaluation_interval: 30s
+
+tests:
+  - name: HostDown pages after three minutes of failed scrapes
+    interval: 1m
+    input_series:
+      - series: 'up{job="node",instance="127.0.0.1:9100",host="command-center"}'
+        values: '1 1 0 0 0 0 0 0 0'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: HostDown
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: HostDown
+        exp_alerts:
+          - exp_labels: {severity: critical, job: node, instance: "127.0.0.1:9100", host: command-center}
+            exp_annotations: {summary: "command-center is not answering scrapes"}
+
+  # One-minute samples: with sparser ones the plain selector on the right of
+  # `and` falls outside the 5m lookback between samples and resets `for`.
+  - name: a steadily filling disk warns days ahead and pages hours ahead
+    interval: 1m
+    input_series:
+      - series: 'node_filesystem_avail_bytes{job="node",instance="127.0.0.1:9100",host="command-center",device="/dev/mmcblk0p2",fstype="ext4",mountpoint="/"}'
+        values: '24000000000-20000000x1100'
+      - series: 'node_filesystem_size_bytes{job="node",instance="127.0.0.1:9100",host="command-center",device="/dev/mmcblk0p2",fstype="ext4",mountpoint="/"}'
+        values: '100000000000x1100'
+    alert_rule_test:
+      - eval_time: 12h
+        alertname: DiskFullSoon
+        exp_alerts: []
+      - eval_time: 12h
+        alertname: DiskFullInDays
+        exp_alerts:
+          - exp_labels: {severity: warning, job: node, instance: "127.0.0.1:9100", host: command-center, device: /dev/mmcblk0p2, fstype: ext4, mountpoint: /}
+            exp_annotations: {summary: "command-center / will fill within 3 days at the current rate"}
+      - eval_time: 18h
+        alertname: DiskFullSoon
+        exp_alerts:
+          - exp_labels: {severity: critical, job: node, instance: "127.0.0.1:9100", host: command-center, device: /dev/mmcblk0p2, fstype: ext4, mountpoint: /}
+            exp_annotations: {summary: "command-center / will fill within 4 hours at the current rate"}
+
+  - name: a nearly full but stable disk does not alert
+    interval: 1m
+    input_series:
+      - series: 'node_filesystem_avail_bytes{job="node",instance="127.0.0.1:9100",host="command-center",device="/dev/mmcblk0p2",fstype="ext4",mountpoint="/"}'
+        values: '5000000000x600'
+      - series: 'node_filesystem_size_bytes{job="node",instance="127.0.0.1:9100",host="command-center",device="/dev/mmcblk0p2",fstype="ext4",mountpoint="/"}'
+        values: '100000000000x600'
+    alert_rule_test:
+      - eval_time: 9h
+        alertname: DiskFullSoon
+        exp_alerts: []
+      - eval_time: 9h
+        alertname: DiskFullInDays
+        exp_alerts: []
+
+  - name: memory pressure needs fifteen minutes under 10 percent
+    interval: 1m
+    input_series:
+      - series: 'node_memory_MemAvailable_bytes{job="node",instance="127.0.0.1:9100",host="command-center"}'
+        values: '300000000x20'
+      - series: 'node_memory_MemTotal_bytes{job="node",instance="127.0.0.1:9100",host="command-center"}'
+        values: '4000000000x20'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: MemoryPressure
+        exp_alerts: []
+      - eval_time: 16m
+        alertname: MemoryPressure
+        exp_alerts:
+          - exp_labels: {severity: warning, job: node, instance: "127.0.0.1:9100", host: command-center}
+            exp_annotations: {summary: "command-center has under 10% memory available"}
+
+  - name: clock drift counts in either direction
+    interval: 1m
+    input_series:
+      - series: 'node_timex_offset_seconds{job="node",instance="127.0.0.1:9100",host="command-center"}'
+        values: '-0.08x15'
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: ClockDrift
+        exp_alerts: []
+      - eval_time: 11m
+        alertname: ClockDrift
+        exp_alerts:
+          - exp_labels: {severity: warning, job: node, instance: "127.0.0.1:9100", host: command-center}
+            exp_annotations: {summary: "command-center clock is more than 50 ms off"}
+
+  - name: a past under-voltage does not alert; a current one does
+    interval: 1m
+    input_series:
+      - series: 'pi_throttle_state{job="node",instance="127.0.0.1:9100",host="command-center",condition="undervoltage",when="since_boot"}'
+        values: '1x15'
+      - series: 'pi_throttle_state{job="node",instance="10.0.0.205:9900",host="lapi-witness",condition="undervoltage",when="now"}'
+        values: '0 0 0 0 1 1 1 1 1 1 1 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 7m
+        alertname: PiThrottled
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: PiThrottled
+        exp_alerts:
+          - exp_labels: {severity: warning, host: lapi-witness}
+            exp_annotations: {summary: "lapi-witness is under-volted or throttled right now"}
+
+  - name: a throttle collector that stops writing is noticed
+    interval: 1m
+    input_series:
+      - series: 'pi_throttle_collector_last_run_timestamp_seconds{job="node",instance="127.0.0.1:9100",host="command-center"}'
+        values: '0x30'
+      - series: 'pi_throttle_collector_success{job="node",instance="127.0.0.1:9100",host="command-center"}'
+        values: '1x30'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: PiCollectorStale
+        exp_alerts: []
+      - eval_time: 21m
+        alertname: PiCollectorStale
+        exp_alerts:
+          - exp_labels: {severity: warning, job: node, instance: "127.0.0.1:9100", host: command-center}
+            exp_annotations: {summary: "command-center throttle collector is failing or has stopped"}
+
+  - name: a throttle collector that cannot read vcgencmd is noticed
+    interval: 1m
+    input_series:
+      - series: 'pi_throttle_collector_last_run_timestamp_seconds{job="node",instance="127.0.0.1:9100",host="command-center"}'
+        values: '0+60x30'
+      - series: 'pi_throttle_collector_success{job="node",instance="127.0.0.1:9100",host="command-center"}'
+        values: '0x30'
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: PiCollectorStale
+        exp_alerts:
+          - exp_labels: {severity: warning, job: node, instance: "127.0.0.1:9100", host: command-center}
+            exp_annotations: {summary: "command-center throttle collector is failing or has stopped"}

@@ -1,0 +1,83 @@
+rule_files:
+  - ../rules/probes.yml
+
+evaluation_interval: 30s
+
+tests:
+  - name: one failing probe pages after three minutes; home connectivity stays quiet
+    interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox",instance="https://a.example/",service="a",module="http_2xx"}'
+        values: '0x10'
+      - series: 'probe_success{job="blackbox",instance="https://b.example/",service="b",module="http_2xx"}'
+        values: '1x10'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: ProbeDown
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: ProbeDown
+        exp_alerts:
+          - exp_labels: {severity: critical, job: blackbox, instance: "https://a.example/", service: a, module: http_2xx}
+            exp_annotations: {summary: "a is unreachable: https://a.example/"}
+      - eval_time: 4m
+        alertname: HomeConnectivityLost
+        exp_alerts: []
+
+  - name: every probe failing raises one home connectivity warning
+    interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox",instance="https://a.example/",service="a",module="http_2xx"}'
+        values: '0x10'
+      - series: 'probe_success{job="blackbox",instance="https://b.example/",service="b",module="http_2xx"}'
+        values: '0x10'
+      - series: 'probe_success{job="blackbox",instance="https://c.example/",service="c",module="http_2xx"}'
+        values: '0x10'
+      - series: 'probe_success{job="blackbox",instance="https://d.example/",service="d",module="http_2xx"}'
+        values: '0x10'
+      - series: 'probe_success{job="blackbox",instance="https://e.example/",service="e",module="http_2xx"}'
+        values: '0x10'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: HomeConnectivityLost
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: HomeConnectivityLost
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations: {summary: "Most external probes are failing at once; the home connection is the likely cause."}
+
+  - name: four of five failing is exactly 80 percent and is not home loss
+    interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox",instance="https://a.example/",service="a",module="http_2xx"}'
+        values: '0x10'
+      - series: 'probe_success{job="blackbox",instance="https://b.example/",service="b",module="http_2xx"}'
+        values: '0x10'
+      - series: 'probe_success{job="blackbox",instance="https://c.example/",service="c",module="http_2xx"}'
+        values: '0x10'
+      - series: 'probe_success{job="blackbox",instance="https://d.example/",service="d",module="http_2xx"}'
+        values: '0x10'
+      - series: 'probe_success{job="blackbox",instance="https://e.example/",service="e",module="http_2xx"}'
+        values: '1x10'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: HomeConnectivityLost
+        exp_alerts: []
+
+  - name: a certificate inside 14 days warns after an hour; 30 days does not
+    interval: 5m
+    input_series:
+      - series: 'probe_ssl_earliest_cert_expiry{job="blackbox",instance="https://soon.example/",service="soon",module="http_2xx"}'
+        values: '864000x20'
+      - series: 'probe_ssl_earliest_cert_expiry{job="blackbox",instance="https://fine.example/",service="fine",module="http_2xx"}'
+        values: '2592000x20'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: CertExpiringSoon
+        exp_alerts: []
+      - eval_time: 65m
+        alertname: CertExpiringSoon
+        exp_alerts:
+          - exp_labels: {severity: warning, job: blackbox, instance: "https://soon.example/", service: soon, module: http_2xx}
+            exp_annotations: {summary: "TLS certificate for https://soon.example/ expires within 14 days"}

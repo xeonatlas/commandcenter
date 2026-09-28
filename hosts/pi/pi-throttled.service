@@ -1,0 +1,7 @@
+[Unit]
+Description=Write Raspberry Pi throttle flags for node_exporter
+
+[Service]
+Type=oneshot
+User=atlas
+ExecStart=/usr/bin/python3 /opt/command-center/hosts/pi/pi_throttled.py /var/lib/node_exporter/textfile/pi_throttled.prom

@@ -1,0 +1,30 @@
+modules:
+  # Must answer 2xx, following redirects (sites redirect apex to www).
+  http_2xx:
+    prober: http
+    timeout: 15s
+    http:
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: true
+      follow_redirects: true
+      valid_status_codes: []
+
+  # The host answering at all is what matters (tiles, analytics, API roots).
+  http_any_answer:
+    prober: http
+    timeout: 15s
+    http:
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: true
+      follow_redirects: true
+      valid_status_codes: [200, 204, 301, 302, 307, 308, 401, 403, 404]
+
+  # POST-only functions: 405 to a GET proves the function is deployed and running.
+  http_405:
+    prober: http
+    timeout: 15s
+    http:
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: true
+      follow_redirects: true
+      valid_status_codes: [405]

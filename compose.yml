@@ -1,0 +1,78 @@
+# The command center. Host networking throughout: later phases scrape over the
+# wg-mon interface on the host, and nothing here needs Docker's NAT.
+name: command-center
+
+x-service: &service
+  restart: unless-stopped
+  network_mode: host
+  logging:
+    driver: local
+    options: {max-size: 10m, max-file: "3"}
+
+services:
+  prometheus:
+    <<: *service
+    image: prom/prometheus:v3.15.0
+    user: "1000:1000"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=90d
+      - --storage.tsdb.retention.size=${PROM_RETENTION_SIZE:-12GB}
+      - --web.listen-address=127.0.0.1:9090
+      - --web.enable-lifecycle
+    volumes:
+      - ./prometheus:/etc/prometheus:ro
+      - /srv/command-center/prometheus:/prometheus
+
+  alertmanager:
+    <<: *service
+    image: prom/alertmanager:v0.34.1
+    user: "1000:1000"
+    command:
+      - --config.file=/etc/alertmanager/run/alertmanager.yml
+      - --storage.path=/alertmanager
+      - --web.listen-address=127.0.0.1:9093
+      - --cluster.listen-address=
+    volumes:
+      # The directory, not the file: apply.sh swaps the file by rename, and a
+      # single-file bind mount would keep serving the old inode.
+      - ./run:/etc/alertmanager/run:ro
+      - /srv/command-center/alertmanager:/alertmanager
+
+  blackbox:
+    <<: *service
+    image: prom/blackbox-exporter:v0.28.0
+    command:
+      - --config.file=/etc/blackbox/blackbox.yml
+      - --web.listen-address=127.0.0.1:9115
+    volumes:
+      - ./blackbox:/etc/blackbox:ro
+
+  node-exporter:
+    <<: *service
+    image: prom/node-exporter:v1.12.1
+    pid: host
+    command:
+      - --path.rootfs=/host
+      - --web.listen-address=127.0.0.1:9100
+      - --collector.textfile.directory=/host/var/lib/node_exporter/textfile
+    volumes:
+      - /:/host:ro,rslave
+
+  grafana:
+    <<: *service
+    image: grafana/grafana:13.2.2
+    user: "1000:1000"
+    environment:
+      GF_SERVER_HTTP_ADDR: 0.0.0.0
+      GF_SERVER_HTTP_PORT: "3000"
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
+      - /srv/command-center/grafana:/var/lib/grafana
