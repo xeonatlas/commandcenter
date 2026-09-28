@@ -42,6 +42,10 @@ confirm() {
 
 do_page() {
   step "Critical and warning page"
+  # A re-run while the last drill's pages are still open would only extend them, and nothing new would push.
+  while [[ $(on_pi 'curl -s "http://127.0.0.1:9093/api/v2/alerts?active=true&filter=service=%22drill%22"') != "[]" ]]; do
+    countdown 15 "the last drill's pages are still open, waiting for them to resolve"
+  done
   amtool_add 'alertname=DrillPage severity=critical service=drill --annotation=summary="Fire drill: critical page. Acknowledge it in Pushover."'
   amtool_add 'alertname=DrillNotice severity=warning service=drill --annotation=summary="Fire drill: quiet warning."'
   echo "Sent. Within about 30 s: a red DrillPage emergency alert that sounds through"
