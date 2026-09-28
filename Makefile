@@ -22,7 +22,7 @@ BLACKBOX  := .tools/blackbox_exporter
 TOOLS     := .tools/promtool
 endif
 
-.PHONY: check test check-configs check-prom check-blackbox check-am check-dashboards deploy setup-pi drill
+.PHONY: check test check-configs check-prom check-blackbox check-am check-dashboards dashboards deploy setup-pi drill
 
 check: test check-configs
 
@@ -53,6 +53,10 @@ check-am: $(TOOLS)
 
 check-dashboards:
 	python3 scripts/check_dashboards.py grafana/dashboards
+
+# Dashboards are generated; edit scripts/build_dashboards.py, then run this.
+dashboards:
+	python3 scripts/build_dashboards.py
 
 deploy:
 	scripts/deploy.sh

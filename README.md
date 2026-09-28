@@ -6,7 +6,13 @@ service from outside and, from phase 2, from inside. Design:
 
 ## Using it
 
-- Dashboards: http://10.0.0.249:3000 (home network only), folder **Command Center**.
+- Dashboards: http://10.0.0.249:3000 (home network only), folder **Command Center**:
+  - **Command Center**: every service and machine at a glance; click one to drill in.
+  - **Service**: one product (Lightning, Vaulterm, ...) per page, each endpoint's
+    uptime, response time split into DNS, connect, TLS, server and transfer, and certificates.
+  - **Machine**: one host in depth: CPU, memory, every filesystem's free space and fill
+    trend, disk I/O, network, temperatures and Pi throttling.
+  - **Probes and certificates**: every URL side by side.
 - Alerts arrive through Pushover: 🔴 breaks through Do Not Disturb and repeats
   until acknowledged, 🟡 is a quiet push. If the Pi or the home connection goes
   silent, healthchecks.io pages instead.
@@ -22,9 +28,11 @@ make setup-pi # first time only: bootstrap a fresh Pi, fill in .env, deploy, ver
 make drill    # fire drill: real pages, inhibitions, host down, dead-man's switch
 ```
 
-- **Add a probe:** add the URL under the right `service` in
+- **Add a probe:** add the URL under the right `service` (and `product`) in
   `prometheus/targets/probes.yml`, choosing `http_2xx`, `http_any_answer` or
   `http_405` from `blackbox/blackbox.yml`.
+- **Change a dashboard:** edit `scripts/build_dashboards.py`, run `make dashboards`, and
+  commit both; `make check` fails if the JSON and the generator disagree.
 - **Add an alert:** add the rule in `prometheus/rules/`, with a firing and a
   non-firing case in `prometheus/tests/`.
 - **Secrets** live only in `/opt/command-center/.env` on the Pi (see

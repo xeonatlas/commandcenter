@@ -19,9 +19,11 @@ def test_every_probe_uses_a_module_that_exists():
         assert group["labels"]["module"] in modules, group
 
 
-def test_every_probe_group_names_its_service_and_has_targets():
+def test_every_probe_group_names_its_service_and_product_and_has_targets():
+    # product picks the Grafana page a probe appears on; without it the probe is on none.
     for group in load("prometheus/targets/probes.yml"):
         assert group["labels"].get("service"), group
+        assert group["labels"].get("product"), group
         assert group["targets"], group
 
 

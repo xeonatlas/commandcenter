@@ -1,36 +1,37 @@
-- labels: {module: http_2xx, service: lightning-api}
+# product groups services onto one Grafana page; service is what alerts name.
+- labels: {module: http_2xx, service: lightning-api, product: Lightning}
   targets:
     - https://api.lightningapi.dev/health
     - https://api.warpulse.com/health
-- labels: {module: http_2xx, service: lightning-site}
+- labels: {module: http_2xx, service: lightning-site, product: Lightning}
   targets:
     - https://lightningapi.dev/
-- labels: {module: http_any_answer, service: lightning-tiles}
+- labels: {module: http_any_answer, service: lightning-tiles, product: Lightning}
   targets:
     - https://tiles.lightningapi.dev/
-- labels: {module: http_2xx, service: ddcloud}
+- labels: {module: http_2xx, service: ddcloud, product: DD Cloud}
   targets:
     - https://cloud.niallmurray.com/health
-- labels: {module: http_any_answer, service: ddcloud-analytics}
+- labels: {module: http_any_answer, service: ddcloud-analytics, product: DD Cloud}
   targets:
     - https://analytics.niallmurray.com/
-- labels: {module: http_2xx, service: dualdegrees-site}
+- labels: {module: http_2xx, service: dualdegrees-site, product: DD Cloud}
   targets:
     - https://dualdegrees.io/
-- labels: {module: http_2xx, service: warpulse-site}
+- labels: {module: http_2xx, service: warpulse-site, product: Warpulse}
   targets:
     - https://warpulse.com/
     - https://support.warpulse.com/
-- labels: {module: http_2xx, service: vaulterm-site}
+- labels: {module: http_2xx, service: vaulterm-site, product: Vaulterm}
   targets:
     - https://vaulterm.com/
-- labels: {module: http_405, service: vaulterm-waitlist}
+- labels: {module: http_405, service: vaulterm-waitlist, product: Vaulterm}
   targets:
     - https://vaulterm.com/api/waitlist
-- labels: {module: http_2xx, service: vaulterm-updates}
+- labels: {module: http_2xx, service: vaulterm-updates, product: Vaulterm}
   targets:
     - https://github.com/xeonatlas/termora-releases/releases/latest/download/latest.yml
-- labels: {module: http_any_answer, service: zelara}
+- labels: {module: http_any_answer, service: zelara, product: Zelara}
   targets:
     - https://www.zelara.chat/
     - https://api.zelara.chat/

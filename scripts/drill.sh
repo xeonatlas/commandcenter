@@ -125,8 +125,9 @@ do_record() {
     "Dead-man's switch (Alertmanager stopped 7 min)"
   )
   local p r
+  # Before the block: its >> creates the file, so testing inside it always sees one.
+  [[ -f docs/drills.md ]] || printf '# Fire drills\n' > docs/drills.md
   {
-    [[ -f docs/drills.md ]] || printf '# Fire drills\n'
     printf '\n## %s: phase 1 (core stack)\n\n| Path | Result |\n|---|---|\n' "$(date +%F)"
     for p in "${paths[@]}"; do
       r=$(grep -F "$p|" "$results" | cut -d'|' -f2- || true)
