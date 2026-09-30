@@ -68,6 +68,8 @@ def test_apply_validates_then_converges_then_reloads(tmp_path):
     assert first("make check-configs AM_CONFIG=run/alertmanager.yml.new") < first("docker compose config")
     assert first("docker compose config") < first("docker compose up -d")
     assert first("docker compose up -d") < first("curl -fsS -X POST http://127.0.0.1:9090/-/reload")
+    # blackbox mounts its config read-only and is not recreated, so a new module needs a reload.
+    assert first("docker compose up -d") < first("curl -fsS -X POST http://127.0.0.1:9115/-/reload")
     rendered = repo / "run" / "alertmanager.yml"
     assert rendered.stat().st_mode & 0o777 == 0o600
     assert not (repo / "run" / "alertmanager.yml.new").exists()

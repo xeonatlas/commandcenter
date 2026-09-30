@@ -23,7 +23,9 @@ wait_ready() {
 }
 wait_ready http://127.0.0.1:9090/-/ready
 wait_ready http://127.0.0.1:9093/-/ready
+wait_ready http://127.0.0.1:9115/
 # Containers that were not recreated are still running the old config.
 curl -fsS -X POST http://127.0.0.1:9090/-/reload
 curl -fsS -X POST http://127.0.0.1:9093/-/reload
+curl -fsS -X POST http://127.0.0.1:9115/-/reload
 docker compose ps
