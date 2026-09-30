@@ -325,10 +325,27 @@ def command_center():
     ], by=["host"], h=6, extra_overrides=[override("host", links=[host_link], displayName="Machine")],
         description="Click a machine to open its page. More machines appear here as they join (phase 2 onwards).")
 
+    b.row("Lightning HA")
+    ha_link = [{"title": "Open Lightning HA", "url": "/d/lightning-ha/lightning-ha?${__url_time_range}"}]
+    b.stat("Primary", 'max by (host) (patroni_primary{job="patroni"}) == 1', legend="{{host}}", text_mode="name",
+           w=4, background=False, color_mode="fixed", no_value="NONE", links=ha_link)
+    b.stat("Replication lag", 'max(pg_replication_lag_seconds{job="postgres"} and on (host) pg_replication_is_replica == 1)',
+           w=4, unit="s", decimals=1, thresholds=steps(GREEN, 5, ORANGE, 30, RED), background=False, links=ha_link)
+    b.stat("etcd members up", 'max(sum by (host) (etcd_network_active_peers{job="etcd"})) + 1', w=4,
+           thresholds=steps(RED, 3, GREEN), links=ha_link)
+    b.stat("Failed jobs", "count(min by (unit) (lightning_job_last_result) == 0) or vector(0)", w=4,
+           thresholds=T_DOWN_COUNT, links=ha_link)
+    b.stat("Last good backup", 'time() - max(lightning_job_last_success_timestamp_seconds{unit="lightning-backup.service"})',
+           w=4, unit="dtdurations", decimals=0, thresholds=steps(GREEN, 26 * 3600, RED), links=ha_link)
+    b.stat("Machines needing a reboot", "count(node_reboot_required == 1) or vector(0)", w=4,
+           thresholds=steps(GREEN, 1, ORANGE), links=[{"title": "Open Machine", "url": "/d/hosts/machine"}],
+           description="Kernel or library updates waiting for a restart.")
+
     b.row("Firing alerts")
     b.table("Firing alerts", [("Value", 'ALERTS{alertstate="firing", alertname!="Watchdog"}', None)],
-            by=["alertname", "severity", "service", "host", "instance"], h=6,
-            hide=["Value", "__name__", "alertstate", "job", "module", "product", "monitor", "when"],
+            by=["alertname", "severity", "service", "host", "name", "unit", "peer", "instance"], h=6,
+            hide=["Value", "__name__", "alertstate", "job", "module", "product", "monitor", "when", "hostname",
+                  "role", "interface", "proxy", "state", "device", "fstype", "mountpoint", "application_name"],
             no_value="Nothing firing")
     return b.done()
 
@@ -458,11 +475,15 @@ def machine():
             thresholds=T_TEMP)
     b.stat("Swap used", f"node_memory_SwapTotal_bytes{{{H}}} - node_memory_SwapFree_bytes{{{H}}}",
            unit="bytes", decimals=1, background=False, color_mode="fixed", no_value="none")
-    b.stat("System", f"node_os_info{{{H}}}", legend="{{pretty_name}}", text_mode="name", w=6, h=3,
+    b.stat("Reboot", f"node_reboot_required{{{H}}}", w=3, h=3, no_value="unknown",
+           mappings=[{"type": "value", "options": {"0": {"text": "not needed", "color": GREEN, "index": 0},
+                                                   "1": {"text": "NEEDED", "color": ORANGE, "index": 1}}}],
+           description="The OS has installed updates that only take effect after a restart.")
+    b.stat("System", f"node_os_info{{{H}}}", legend="{{pretty_name}}", text_mode="name", w=5, h=3,
            background=False, color_mode="fixed")
-    b.stat("Kernel", f"node_uname_info{{{H}}}", legend="{{release}} {{machine}}", text_mode="name", w=6, h=3,
+    b.stat("Kernel", f"node_uname_info{{{H}}}", legend="{{release}} {{machine}}", text_mode="name", w=5, h=3,
            background=False, color_mode="fixed")
-    b.stat("CPU cores", f'count(node_cpu_seconds_total{{{H}, mode="idle"}})', w=4, h=3, background=False,
+    b.stat("CPU cores", f'count(node_cpu_seconds_total{{{H}, mode="idle"}})', w=3, h=3, background=False,
            color_mode="fixed")
     b.stat("Memory", f"node_memory_MemTotal_bytes{{{H}}}", unit="bytes", decimals=1, w=4, h=3,
            background=False, color_mode="fixed")
@@ -609,9 +630,189 @@ def machine():
              legend_calcs=())
     return b.done()
 
+def lightning_ha():
+    b = Board("lightning-ha", "Lightning HA",
+              "Lightning's database cluster from inside: who is primary, is the replica keeping up, is etcd healthy, "
+              "do both APIs reach the database, and did every scheduled job run.",
+              tags=["lightning"], time="now-24h", refresh="30s")
+    P, PG, E, HA = 'job="patroni"', 'job="postgres"', 'job="etcd"', 'job="haproxy", proxy="postgres_leader"'
+    replica = f"and on (host) pg_replication_is_replica{{{PG}}} == 1"
+    backup = 'unit="lightning-backup.service"'
+
+    b.row("At a glance")
+    b.stat("Primary", f"max by (host, name) (patroni_primary{{{P}}}) == 1", legend="{{host}} ({{name}})",
+           text_mode="name", w=4, background=False, color_mode="fixed", no_value="NONE",
+           description="The Patroni member holding the leader lock; its database takes the writes.")
+    b.stat("Timeline", f"max(patroni_postgres_timeline{{{P}}})", w=2, background=False, color_mode="fixed",
+           description="Goes up by one at every failover.")
+    b.stat("Replication lag", f"max(pg_replication_lag_seconds{{{PG}}} {replica})", unit="s", decimals=1,
+           thresholds=steps(GREEN, 5, ORANGE, 30, RED), background=False)
+    b.stat("Streaming replicas", f'count(pg_stat_replication_pg_wal_lsn_diff{{{PG}, state="streaming"}}) or vector(0)',
+           thresholds=steps(RED, 1, GREEN))
+    b.stat("etcd members up", f"max(sum by (host) (etcd_network_active_peers{{{E}}})) + 1",
+           thresholds=steps(RED, 3, GREEN), description="As seen by the best-connected member, itself included.")
+    b.stat("etcd leader", f"max by (host) (etcd_server_is_leader{{{E}}}) == 1", legend="{{host}}", text_mode="name",
+           w=3, background=False, color_mode="fixed", no_value="NONE")
+    b.stat("Failed jobs", "count(min by (unit) (lightning_job_last_result) == 0) or vector(0)", w=2,
+           thresholds=T_DOWN_COUNT, description="Timer-driven jobs whose last run failed on some node.")
+    b.stat("Last good backup", f"time() - max(lightning_job_last_success_timestamp_seconds{{{backup}}})",
+           unit="dtdurations", decimals=0, w=4, thresholds=steps(GREEN, 26 * 3600, RED), background=True,
+           description="Age of the last successful lightning-backup run. BackupStale warns past 26 hours.")
+
+    b.row("Patroni")
+    roles = [{"type": "value", "options": {"2": {"text": "primary", "color": BLUE, "index": 0},
+                                           "1": {"text": "replica", "color": GREEN, "index": 1},
+                                           "0": {"text": "down", "color": RED, "index": 2}}}]
+    b.timeline("Role per member", [q(f"max by (host) (2 * patroni_primary{{{P}}} + patroni_replica{{{P}}})",
+                                     "{{host}}")], w=16, h=6, mappings=roles,
+               thresholds=steps(RED, 1, GREEN, 2, BLUE))
+    b.table("Members", [
+        ("Running", f"max by (host, name) (patroni_postgres_running{{{P}}})", UP_CELL),
+        ("Timeline", f"max by (host, name) (patroni_postgres_timeline{{{P}}})", dict(custom__width=80)),
+        ("Pending restart", f"max by (host, name) (patroni_pending_restart{{{P}}})",
+         dict(mappings=[{"type": "value", "options": {"0": {"text": "no", "index": 0},
+                                                      "1": {"text": "yes", "color": ORANGE, "index": 1}}}],
+              custom__cellOptions={"type": "color-text"})),
+        ("DCS seen", f"time() - max by (host, name) (patroni_dcs_last_seen{{{P}}})",
+         text_cell("s", steps(GREEN, 30, ORANGE, 60, RED), 0)),
+    ], by=["host", "name"], w=8, h=6, extra_overrides=[override("host", displayName="Machine"),
+                                                        override("name", displayName="Member")])
+
+    b.row("Replication")
+    b.series("Replica lag", [q(f"pg_replication_lag_seconds{{{PG}}} {replica}", "{{host}}")], w=8, unit="s",
+             thresholds=steps(GREEN, 30, RED), custom={"thresholdsStyle": {"mode": "dashed"}},
+             description="Time since the replica last replayed a transaction that the primary has committed.")
+    b.series("Replica behind, in WAL", [q(f"pg_stat_replication_pg_wal_lsn_diff{{{PG}}}", "{{application_name}} ({{state}})")],
+             w=8, unit="bytes", description="Bytes of WAL the primary has written that each standby has not replayed.")
+    b.series("WAL held by replication slots", [q(f"pg_replication_slots_pg_wal_lsn_diff{{{PG}}}", "{{host}}: {{slot_name}}")],
+             w=8, unit="bytes", description="An inactive slot keeps WAL forever; this climbing means disk will follow.")
+
+    b.row("Postgres")
+    b.series("Connections", [
+        q(f"sum by (host) (pg_stat_activity_count{{{PG}}})", "{{host}}"),
+        q(f"max(pg_settings_max_connections{{{PG}}})", "max_connections")], w=8,
+        overrides=[override("max_connections", color=color(RED), custom__lineStyle={"fill": "dash", "dash": [10, 10]},
+                            custom__fillOpacity=0)])
+    b.series("Connections by state, primary", [
+        q(f"sum by (state) (pg_stat_activity_count{{{PG}, datname=\"lightningapi\"}} and on (host) pg_replication_is_replica{{{PG}}} == 0)",
+          "{{state}}")], w=8, stack=True)
+    b.series("Longest transaction", [q(f"max by (host) (pg_stat_activity_max_tx_duration{{{PG}}})", "{{host}}")], w=8,
+             unit="s", description="Long transactions hold back vacuum and replication; minutes is a smell.")
+    b.series("Transactions", [
+        q(f"sum by (host) (rate(pg_stat_database_xact_commit{{{PG}}}[$__rate_interval]))", "{{host}} commits"),
+        q(f"sum by (host) (rate(pg_stat_database_xact_rollback{{{PG}}}[$__rate_interval]))", "{{host}} rollbacks")],
+        w=8, unit="ops")
+    b.series("Cache hit ratio", [q(
+        f"sum by (host) (rate(pg_stat_database_blks_hit{{{PG}}}[$__rate_interval])) / "
+        f"(sum by (host) (rate(pg_stat_database_blks_hit{{{PG}}}[$__rate_interval])) + "
+        f"sum by (host) (rate(pg_stat_database_blks_read{{{PG}}}[$__rate_interval])))", "{{host}}")],
+        w=8, unit="percentunit", decimals=2, custom={"axisSoftMin": 0.9}, maxv=1)
+    b.series("Database size", [q(f'pg_database_size_bytes{{{PG}, datname="lightningapi"}}', "{{host}}")], w=8,
+             unit="bytes")
+    b.series("Deadlocks and conflicts", [
+        q(f"sum by (host) (increase(pg_stat_database_deadlocks{{{PG}}}[$__rate_interval]))", "{{host}} deadlocks"),
+        q(f"sum by (host) (increase(pg_stat_database_conflicts{{{PG}}}[$__rate_interval]))", "{{host}} replica conflicts")],
+        w=8, bars=True)
+    b.series("Temp files written", [q(f"sum by (host) (rate(pg_stat_database_temp_bytes{{{PG}}}[$__rate_interval]))",
+                                      "{{host}}")], w=8, unit="Bps",
+             description="Queries spilling to disk because work_mem is too small for them.")
+    b.series("Checkpoints", [
+        q(f"rate(pg_stat_bgwriter_checkpoints_timed_total{{{PG}}}[$__rate_interval]) * 3600", "{{host}} timed"),
+        q(f"rate(pg_stat_bgwriter_checkpoints_req_total{{{PG}}}[$__rate_interval]) * 3600", "{{host}} requested")],
+        w=8, unit="none", description="Per hour. Many requested checkpoints mean max_wal_size is small for the write load.")
+
+    b.row("etcd")
+    b.series("WAL fsync, p99", [q(
+        f"histogram_quantile(0.99, sum by (host, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{{{E}}}[5m])))",
+        "{{host}}")], w=8, unit="s", thresholds=steps(GREEN, 0.025, ORANGE, 0.1, RED),
+        custom={"thresholdsStyle": {"mode": "dashed"}},
+        description="etcd waits for this on every write. Over 100 ms pages; the witness warns over 25 ms.")
+    b.series("Peer round trip, p99", [q(
+        f"histogram_quantile(0.99, sum by (host, To, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{{{E}}}[5m])))",
+        "{{host}} → {{To}}")], w=8, unit="s")
+    b.series("Leader changes", [q(f"max(increase(etcd_server_leader_changes_seen_total{{{E}}}[1h]))", "per hour")],
+             w=8, bars=True, description="EtcdLeaderChurn warns over 3 in an hour.")
+    b.timeline("Has a leader, per member", [q(f"max by (host) (etcd_server_has_leader{{{E}}})", "{{host}}")],
+               w=12, h=5, mappings=[{"type": "value", "options": {"1": {"text": "yes", "color": GREEN, "index": 0},
+                                                                   "0": {"text": "NO LEADER", "color": RED, "index": 1}}}],
+               thresholds=steps(RED, 1, GREEN))
+    b.series("Database size", [q(f"max by (host) (etcd_mvcc_db_total_size_in_bytes{{{E}}})", "{{host}}")], w=6, h=5,
+             unit="bytes", legend_table=False, legend_calcs=())
+    b.series("Failed proposals", [q(f"sum(increase(etcd_server_proposals_failed_total{{{E}}}[$__rate_interval]))", "failed")],
+             w=6, h=5, bars=True, legend_table=False, legend_calcs=())
+
+    b.row("HAProxy: each API's road to the database")
+    b.timeline("Backend each node's HAProxy sends to", [q(
+        f'max by (host, server) (haproxy_server_status{{{HA}, state="UP"}})', "{{host}} → {{server}}")],
+        w=12, h=6, mappings=[{"type": "value", "options": {"1": {"text": "UP (leader)", "color": GREEN, "index": 0},
+                                                           "0": {"text": "down", "color": GREY, "index": 1}}}],
+        thresholds=steps(GREY, 1, GREEN),
+        description="HAProxy health-checks Patroni's /leader, so exactly one server per node should be UP.")
+    b.series("Database sessions through HAProxy", [q(f"haproxy_backend_current_sessions{{{HA}}}", "{{host}}")], w=6, h=6,
+             legend_table=False, legend_calcs=())
+    b.series("Connection errors", [q(f"rate(haproxy_backend_connection_errors_total{{{HA}}}[$__rate_interval])", "{{host}}")],
+             w=6, h=6, unit="ops", legend_table=False, legend_calcs=())
+
+    b.row("Scheduled jobs")
+    results = [{"type": "value", "options": {"1": {"text": "OK", "color": GREEN, "index": 0},
+                                             "0": {"text": "FAILED", "color": RED, "index": 1}}}]
+    b.table("Jobs", [
+        ("Last run", "max by (unit, host) (lightning_job_last_result)",
+         dict(mappings=results, custom__cellOptions={"type": "color-background", "mode": "basic"}, custom__width=90)),
+        ("Last success", "time() - max by (unit, host) (lightning_job_last_success_timestamp_seconds > 0)",
+         dict(unit="dtdurations", decimals=0)),
+        ("Ran", "time() - max by (unit, host) (lightning_job_last_run_timestamp_seconds)", dict(unit="dtdurations", decimals=0)),
+        ("Every", "max by (unit, host) (lightning_job_interval_seconds)", dict(unit="dtdurations", decimals=0)),
+    ], by=["unit", "host"], w=14, h=14, sort="Last run",
+        extra_overrides=[override("unit", displayName="Job"), override("host", displayName="Machine")],
+        description="One row per job per node. A job runs on whichever node holds its role; "
+                    "JobMissedRun and BackupStale look at the latest success across nodes.")
+    b.timeline("Last result per job", [q("min by (unit) (lightning_job_last_result)", "{{unit}}")], w=10, h=14,
+               mappings=results, thresholds=steps(RED, 1, GREEN))
+    b.timeline("Collectors (ingest), running on any node", [q(
+        'max by (name) (node_systemd_unit_state{name=~"lightning-ingest(-west)?[.]service", state="active"})', "{{name}}")],
+        w=24, h=4, mappings=[{"type": "value", "options": {"1": {"text": "running", "color": GREEN, "index": 0},
+                                                           "0": {"text": "STOPPED", "color": RED, "index": 1}}}],
+        thresholds=steps(RED, 1, GREEN))
+
+    b.row("Witness SD card")
+    W, SD = 'host="lapi-witness"', 'host="lapi-witness", device="mmcblk0"'
+    b.stat("Root filesystem", f'max(node_filesystem_readonly{{{W}, mountpoint="/"}})', w=4,
+           mappings=[{"type": "value", "options": {"0": {"text": "read-write", "color": GREEN, "index": 0},
+                                                   "1": {"text": "READ-ONLY", "color": RED, "index": 1}}}])
+    b.stat("Written, last 24 h", f"increase(node_disk_written_bytes_total{{{SD}}}[24h])", unit="bytes", decimals=1,
+           w=4, background=False, color_mode="fixed")
+    b.stat("Written since boot", f"node_disk_written_bytes_total{{{SD}}}", unit="bytes", decimals=1, w=4,
+           background=False, color_mode="fixed")
+    b.stat("etcd fsync p99", f"histogram_quantile(0.99, sum by (le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{{{E}, {W}}}[5m])))",
+           unit="s", decimals=3, w=4, thresholds=steps(GREEN, 0.025, ORANGE, 0.1, RED), background=False)
+    b.stat("Card busy", f"rate(node_disk_io_time_seconds_total{{{SD}}}[5m])", unit="percentunit", decimals=0, w=4,
+           thresholds=T_USED, background=False)
+    b.stat("Power", f'max(pi_throttle_state{{{W}, when="now"}})', w=4,
+           mappings=[{"type": "value", "options": {"0": {"text": "OK", "color": GREEN, "index": 0},
+                                                   "1": {"text": "THROTTLED", "color": RED, "index": 1}}}])
+    b.series("Average write latency", [q(
+        f"rate(node_disk_write_time_seconds_total{{{SD}}}[$__rate_interval]) / "
+        f"rate(node_disk_writes_completed_total{{{SD}}}[$__rate_interval])", "write")], w=12, unit="s",
+        description="This card has stalled for up to 907 ms under load; a rising line is the time to replace it.")
+    b.series("Write rate", [q(f"rate(node_disk_written_bytes_total{{{SD}}}[$__rate_interval])", "written")], w=12,
+             unit="Bps")
+
+    b.row("Tunnels")
+    b.table("WireGuard handshakes", [
+        ("Last handshake", "time() - max by (host, interface, peer) (wireguard_latest_handshake_timestamp_seconds)",
+         text_cell("s", steps(GREEN, 180, RED), 0)),
+        ("Received", "max by (host, interface, peer) (rate(wireguard_received_bytes_total[5m]))", dict(unit="Bps")),
+        ("Sent", "max by (host, interface, peer) (rate(wireguard_sent_bytes_total[5m]))", dict(unit="Bps")),
+    ], by=["host", "interface", "peer"], h=9,
+        extra_overrides=[override("host", displayName="Machine"), override("interface", displayName="Tunnel"),
+                         override("peer", displayName="Peer")],
+        description="wg0 is the Patroni and etcd mesh; wg-mon is the command center's own. Over 3 minutes means the peer is gone.")
+    return b.done()
+
 
 BOARDS = {"command-center.json": command_center, "service.json": service,
-          "probes.json": probes, "hosts.json": machine}
+          "probes.json": probes, "hosts.json": machine, "lightning-ha.json": lightning_ha}
 
 
 def render():

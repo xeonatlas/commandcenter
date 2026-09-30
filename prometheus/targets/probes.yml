@@ -31,6 +31,13 @@
 - labels: {module: http_2xx, service: vaulterm-updates, product: Vaulterm}
   targets:
     - https://github.com/xeonatlas/termora-releases/releases/latest/download/latest.yml
+# The license server (Vercel): activation and refresh, checkout, and the Stripe webhook
+# that issues licenses. Each route checks its own secrets, so each is probed.
+- labels: {module: http_post_400, service: vaulterm-api, product: Vaulterm}
+  targets:
+    - https://api.vaulterm.com/v1/activate
+    - https://api.vaulterm.com/v1/checkout
+    - https://api.vaulterm.com/v1/stripe/webhook
 - labels: {module: http_any_answer, service: zelara, product: Zelara}
   targets:
     - https://www.zelara.chat/

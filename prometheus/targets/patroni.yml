@@ -1,0 +1,5 @@
+# Rendered from inventory/hosts.yml by scripts/render_inventory.py; do not edit.
+- labels: {host: lightning-a, hostname: ns104901, role: lightning}
+  targets: ['10.98.0.11:9900']
+- labels: {host: lightning-b, hostname: ns107120, role: lightning}
+  targets: ['10.98.0.12:9900']

@@ -1,0 +1,302 @@
+rule_files:
+  - ../rules/lightning.yml
+
+evaluation_interval: 30s
+
+tests:
+  - name: no primary pages, one primary is quiet
+    interval: 1m
+    input_series:
+      - series: 'patroni_primary{job="patroni",host="lightning-a",name="covenant"}'
+        values: '1 1 0 0 0 0 0'
+      - series: 'patroni_primary{job="patroni",host="lightning-b",name="nostromo"}'
+        values: '0 0 0 0 0 0 0'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: PatroniNoLeader
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: PatroniNoLeader
+        exp_alerts:
+          - exp_labels: {severity: critical}
+            exp_annotations: {summary: "No Patroni member is primary: Lightning's database is read-only or down"}
+
+  - name: two primaries page as split brain
+    interval: 1m
+    input_series:
+      - series: 'patroni_primary{job="patroni",host="lightning-a",name="covenant"}'
+        values: '1x5'
+      - series: 'patroni_primary{job="patroni",host="lightning-b",name="nostromo"}'
+        values: '0 0 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: PatroniTwoPrimaries
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: PatroniTwoPrimaries
+        exp_alerts:
+          - exp_labels: {severity: critical}
+            exp_annotations: {summary: "2 Patroni members claim to be primary (split brain)"}
+
+  - name: a timeline bump warns for ten minutes
+    interval: 1m
+    input_series:
+      - series: 'patroni_postgres_timeline{job="patroni",host="lightning-a",name="covenant"}'
+        values: '9x20 10x20'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: FailoverHappened
+        exp_alerts: []
+      - eval_time: 25m
+        alertname: FailoverHappened
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations: {summary: "Lightning's database failed over (timeline is now 10)"}
+      - eval_time: 35m
+        alertname: FailoverHappened
+        exp_alerts: []
+
+  - name: a primary with no streaming replica pages
+    interval: 1m
+    input_series:
+      - series: 'pg_up{job="postgres",host="lightning-a"}'
+        values: '1x10'
+      - series: 'pg_replication_is_replica{job="postgres",host="lightning-a"}'
+        values: '0x10'
+      - series: 'pg_stat_replication_pg_wal_lsn_diff{job="postgres",host="lightning-a",application_name="nostromo",state="streaming"}'
+        values: '0 0 _ _ _ _ _ _ _ _'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: ReplicationBroken
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: ReplicationBroken
+        exp_alerts:
+          - exp_labels: {severity: critical}
+            exp_annotations: {summary: "Lightning's primary has no streaming replica: a failover now would lose data or fail"}
+
+  - name: nothing scraped is silence, not a broken replication page
+    interval: 1m
+    input_series:
+      - series: 'pg_up{job="postgres",host="lightning-a"}'
+        values: '_x10'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ReplicationBroken
+        exp_alerts: []
+
+  - name: replica lag warns, the primary's own lag reading does not
+    interval: 1m
+    input_series:
+      - series: 'pg_replication_lag_seconds{job="postgres",host="lightning-b"}'
+        values: '60x10'
+      - series: 'pg_replication_is_replica{job="postgres",host="lightning-b"}'
+        values: '1x10'
+      - series: 'pg_replication_lag_seconds{job="postgres",host="lightning-a"}'
+        values: '600x10'
+      - series: 'pg_replication_is_replica{job="postgres",host="lightning-a"}'
+        values: '0x10'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: ReplicationLagHigh
+        exp_alerts: []
+      - eval_time: 7m
+        alertname: ReplicationLagHigh
+        exp_alerts:
+          - exp_labels: {severity: warning, job: postgres, host: lightning-b}
+            exp_annotations: {summary: "lightning-b replica is 1m 0s behind the primary"}
+
+  - name: postgres down warns
+    interval: 1m
+    input_series:
+      - series: 'pg_up{job="postgres",host="lightning-b"}'
+        values: '1 0 0 0 0'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: PostgresDown
+        exp_alerts:
+          - exp_labels: {severity: warning, job: postgres, host: lightning-b}
+            exp_annotations: {summary: "Postgres on lightning-b is not answering its exporter"}
+
+  - name: HAProxy with no database backend pages
+    interval: 1m
+    input_series:
+      - series: 'haproxy_backend_active_servers{job="haproxy",host="lightning-b",proxy="postgres_leader"}'
+        values: '1 1 0 0 0'
+      - series: 'haproxy_backend_active_servers{job="haproxy",host="lightning-a",proxy="postgres_leader"}'
+        values: '1x5'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: HAProxyNoDatabase
+        exp_alerts:
+          - exp_labels: {severity: critical, job: haproxy, host: lightning-b, proxy: postgres_leader}
+            exp_annotations: {summary: "HAProxy on lightning-b sees no Postgres leader: its API cannot reach the database"}
+
+  - name: losing an etcd member pages, a healthy cluster does not
+    interval: 1m
+    input_series:
+      - series: 'etcd_network_active_peers{job="etcd",host="lightning-a",Local="a",Remote="b"}'
+        values: '1x12'
+      - series: 'etcd_network_active_peers{job="etcd",host="lightning-a",Local="a",Remote="w"}'
+        values: '1 1 _ _ _ _ _ _ _ _ _ _ _'
+      - series: 'etcd_network_active_peers{job="etcd",host="lightning-b",Local="b",Remote="a"}'
+        values: '1x12'
+      - series: 'etcd_network_active_peers{job="etcd",host="lightning-b",Local="b",Remote="w"}'
+        values: '1 1 _ _ _ _ _ _ _ _ _ _ _'
+      - series: 'etcd_server_has_leader{job="etcd",host="lightning-a"}'
+        values: '1x12'
+      - series: 'etcd_server_has_leader{job="etcd",host="lightning-b"}'
+        values: '1x12'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: EtcdNoQuorumRisk
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: EtcdNoQuorumRisk
+        exp_alerts:
+          - exp_labels: {severity: critical}
+            exp_annotations: {summary: "etcd has fewer than 3 healthy members or no leader: one more loss stops failover"}
+
+  - name: slow etcd fsync pages on any member, and warns early on the witness
+    interval: 1m
+    input_series:
+      - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{job="etcd",host="lightning-a",role="lightning",le="0.05"}'
+        values: '0x40'
+      - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{job="etcd",host="lightning-a",role="lightning",le="0.1"}'
+        values: '0x40'
+      - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{job="etcd",host="lightning-a",role="lightning",le="0.2"}'
+        values: '0+60x40'
+      - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{job="etcd",host="lightning-a",role="lightning",le="+Inf"}'
+        values: '0+60x40'
+      - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{job="etcd",host="lapi-witness",role="witness",le="0.025"}'
+        values: '0x40'
+      - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{job="etcd",host="lapi-witness",role="witness",le="0.05"}'
+        values: '0+60x40'
+      - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{job="etcd",host="lapi-witness",role="witness",le="+Inf"}'
+        values: '0+60x40'
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: EtcdFsyncVerySlow
+        exp_alerts:
+          - exp_labels: {severity: critical, host: lightning-a}
+            exp_annotations: {summary: "etcd on lightning-a takes 199ms to fsync its WAL (p99)"}
+      - eval_time: 25m
+        alertname: EtcdFsyncSlow
+        exp_alerts:
+          - exp_labels: {severity: warning, host: lapi-witness}
+            exp_annotations: {summary: "The witness's SD card is slow: etcd WAL fsync p99 49.75ms"}
+
+  - name: the witness as etcd leader warns
+    interval: 1m
+    input_series:
+      - series: 'etcd_server_is_leader{job="etcd",host="lapi-witness",role="witness"}'
+        values: '0 1 1 1 1 1 1 1'
+      - series: 'etcd_server_is_leader{job="etcd",host="lightning-a",role="lightning"}'
+        values: '1 0 0 0 0 0 0 0'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: EtcdLeaderOnWitness
+        exp_alerts: []
+      - eval_time: 7m
+        alertname: EtcdLeaderOnWitness
+        exp_alerts:
+          - exp_labels: {severity: warning, job: etcd, host: lapi-witness, role: witness}
+            exp_annotations: {summary: "The witness is etcd leader; move it: etcdctl move-leader to lapi-a or lapi-b"}
+
+  - name: frequent etcd leader changes warn, occasional ones do not
+    interval: 5m
+    input_series:
+      - series: 'etcd_server_leader_changes_seen_total{job="etcd",host="lightning-a"}'
+        values: '0 0 1 2 3 4 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5'
+      - series: 'etcd_server_leader_changes_seen_total{job="etcd",host="lightning-b"}'
+        values: '0 0 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 35m
+        alertname: EtcdLeaderChurn
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations: {summary: "etcd changed leader 5 times in the last hour"}
+      - eval_time: 150m
+        alertname: EtcdLeaderChurn
+        exp_alerts: []
+
+  - name: a read-only root on the witness pages
+    interval: 1m
+    input_series:
+      - series: 'node_filesystem_readonly{job="node",host="lapi-witness",role="witness",mountpoint="/",device="/dev/mmcblk0p2"}'
+        values: '0 1 1 1 1'
+      - series: 'node_filesystem_readonly{job="node",host="lapi-witness",role="witness",mountpoint="/boot/firmware",device="/dev/mmcblk0p1"}'
+        values: '1x4'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: WitnessCardFailing
+        exp_alerts:
+          - exp_labels: {severity: critical, job: node, host: lapi-witness, role: witness, mountpoint: /, device: /dev/mmcblk0p2}
+            exp_annotations: {summary: "The witness's root filesystem is read-only: its SD card is failing"}
+
+  - name: a job that stops succeeding warns, one that keeps succeeding does not
+    interval: 1m
+    input_series:
+      - series: 'lightning_job_last_success_timestamp_seconds{job="node",host="lightning-a",unit="lightning-storm-tracker.service"}'
+        values: '0x40'
+      - series: 'lightning_job_interval_seconds{job="node",host="lightning-a",unit="lightning-storm-tracker.service"}'
+        values: '300x40'
+      - series: 'lightning_job_last_success_timestamp_seconds{job="node",host="lightning-a",unit="lightning-watchdog.service"}'
+        values: '0+60x40'
+      - series: 'lightning_job_interval_seconds{job="node",host="lightning-a",unit="lightning-watchdog.service"}'
+        values: '120x40'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: JobMissedRun
+        exp_alerts: []
+      - eval_time: 30m
+        alertname: JobMissedRun
+        exp_alerts:
+          - exp_labels: {severity: warning, unit: lightning-storm-tracker.service}
+            exp_annotations: {summary: "lightning-storm-tracker.service has not succeeded for 30m 0s"}
+
+  - name: a job that succeeds on the other node counts as run
+    interval: 1m
+    input_series:
+      - series: 'lightning_job_last_success_timestamp_seconds{job="node",host="lightning-b",unit="lightning-payg-settlement.service"}'
+        values: '0x40'
+      - series: 'lightning_job_last_success_timestamp_seconds{job="node",host="lightning-a",unit="lightning-payg-settlement.service"}'
+        values: '0+60x40'
+      - series: 'lightning_job_interval_seconds{job="node",host="lightning-b",unit="lightning-payg-settlement.service"}'
+        values: '300x40'
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: JobMissedRun
+        exp_alerts: []
+
+  # Samples closer than the 5m lookback, or `for` resets between them.
+  - name: a backup older than 26 hours warns
+    interval: 4m
+    input_series:
+      - series: 'lightning_job_last_success_timestamp_seconds{job="node",host="lightning-a",unit="lightning-backup.service"}'
+        values: '0x420'
+    alert_rule_test:
+      - eval_time: 25h
+        alertname: BackupStale
+        exp_alerts: []
+      - eval_time: 27h
+        alertname: BackupStale
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations: {summary: "Lightning's last good backup is 1d 3h 0m 0s old"}
+
+  - name: ingest down on every node warns, running on one is fine
+    interval: 1m
+    input_series:
+      - series: 'node_systemd_unit_state{job="node",host="lightning-a",name="lightning-ingest.service",state="active"}'
+        values: '1 1 0 0 0 0 0 0 0 0'
+      - series: 'node_systemd_unit_state{job="node",host="lightning-b",name="lightning-ingest.service",state="active"}'
+        values: '0x9'
+      - series: 'node_systemd_unit_state{job="node",host="lightning-a",name="lightning-ingest-west.service",state="active"}'
+        values: '1x9'
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: IngestUnitInactive
+        exp_alerts:
+          - exp_labels: {severity: warning, name: lightning-ingest.service}
+            exp_annotations: {summary: "lightning-ingest.service is not running on any node: no new flashes are being collected"}

@@ -39,3 +39,13 @@ def test_probe_timeouts_fit_inside_the_scrape_timeout():
     limit = seconds(next(j for j in jobs if j["job_name"] == "blackbox")["scrape_timeout"])
     for name, module in load("blackbox/blackbox.yml")["modules"].items():
         assert seconds(module["timeout"]) < limit, name
+
+
+def test_post_modules_send_json_and_check_the_answer_is_the_app():
+    # A 400 alone could be the platform's own error page; the body match proves the function ran.
+    for name, module in load("blackbox/blackbox.yml")["modules"].items():
+        http = module["http"]
+        if http.get("method") == "POST":
+            assert http["headers"]["Content-Type"] == "application/json", name
+            assert http["body"], name
+            assert http["fail_if_body_not_matches_regexp"], name

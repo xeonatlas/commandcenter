@@ -664,8 +664,8 @@
     },
     {
       "type": "stat",
-      "title": "System",
-      "description": "",
+      "title": "Reboot",
+      "description": "The OS has installed updates that only take effect after a restart.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -673,7 +673,88 @@
       "gridPos": {
         "x": 0,
         "y": 5,
-        "w": 6,
+        "w": 3,
+        "h": 3
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "node_reboot_required{host=\"$host\"}",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "not needed",
+                  "color": "green",
+                  "index": 0
+                },
+                "1": {
+                  "text": "NEEDED",
+                  "color": "orange",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "unknown",
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "id": 10
+    },
+    {
+      "type": "stat",
+      "title": "System",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 3,
+        "y": 5,
+        "w": 5,
         "h": 3
       },
       "targets": [
@@ -724,7 +805,7 @@
         "wideLayout": true,
         "showPercentChange": false
       },
-      "id": 10
+      "id": 11
     },
     {
       "type": "stat",
@@ -735,9 +816,9 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 6,
+        "x": 8,
         "y": 5,
-        "w": 6,
+        "w": 5,
         "h": 3
       },
       "targets": [
@@ -788,7 +869,7 @@
         "wideLayout": true,
         "showPercentChange": false
       },
-      "id": 11
+      "id": 12
     },
     {
       "type": "stat",
@@ -799,9 +880,9 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 12,
+        "x": 13,
         "y": 5,
-        "w": 4,
+        "w": 3,
         "h": 3
       },
       "targets": [
@@ -852,7 +933,7 @@
         "wideLayout": true,
         "showPercentChange": false
       },
-      "id": 12
+      "id": 13
     },
     {
       "type": "stat",
@@ -918,7 +999,7 @@
         "wideLayout": true,
         "showPercentChange": false
       },
-      "id": 13
+      "id": 14
     },
     {
       "type": "stat",
@@ -984,7 +1065,7 @@
         "wideLayout": true,
         "showPercentChange": false
       },
-      "id": 14
+      "id": 15
     },
     {
       "type": "row",
@@ -997,7 +1078,7 @@
         "w": 24,
         "h": 1
       },
-      "id": 15
+      "id": 16
     },
     {
       "type": "stat",
@@ -1065,7 +1146,7 @@
         "wideLayout": true,
         "showPercentChange": false
       },
-      "id": 16
+      "id": 17
     },
     {
       "type": "table",
@@ -1232,7 +1313,7 @@
           }
         }
       ],
-      "id": 17
+      "id": 18
     },
     {
       "type": "row",
@@ -1245,7 +1326,7 @@
         "w": 24,
         "h": 1
       },
-      "id": 18
+      "id": 19
     },
     {
       "type": "bargauge",
@@ -1329,7 +1410,7 @@
           "showLegend": false
         }
       },
-      "id": 19
+      "id": 20
     },
     {
       "type": "table",
@@ -1809,7 +1890,7 @@
           }
         }
       ],
-      "id": 20
+      "id": 21
     },
     {
       "type": "timeseries",
@@ -1890,7 +1971,7 @@
           "sort": "desc"
         }
       },
-      "id": 21
+      "id": 22
     },
     {
       "type": "row",
@@ -1903,7 +1984,7 @@
         "w": 24,
         "h": 1
       },
-      "id": 22
+      "id": 23
     },
     {
       "type": "timeseries",
@@ -1985,7 +2066,7 @@
           "sort": "desc"
         }
       },
-      "id": 23
+      "id": 24
     },
     {
       "type": "timeseries",
@@ -2122,7 +2203,7 @@
           "sort": "desc"
         }
       },
-      "id": 24
+      "id": 25
     },
     {
       "type": "timeseries",
@@ -2200,7 +2281,7 @@
           "sort": "desc"
         }
       },
-      "id": 25
+      "id": 26
     },
     {
       "type": "timeseries",
@@ -2320,7 +2401,7 @@
           "sort": "desc"
         }
       },
-      "id": 26
+      "id": 27
     },
     {
       "type": "row",
@@ -2333,7 +2414,7 @@
         "w": 24,
         "h": 1
       },
-      "id": 27
+      "id": 28
     },
     {
       "type": "timeseries",
@@ -2478,7 +2559,7 @@
           "sort": "desc"
         }
       },
-      "id": 28
+      "id": 29
     },
     {
       "type": "timeseries",
@@ -2607,7 +2688,7 @@
           "sort": "desc"
         }
       },
-      "id": 29
+      "id": 30
     },
     {
       "type": "row",
@@ -2620,7 +2701,7 @@
         "w": 24,
         "h": 1
       },
-      "id": 30
+      "id": 31
     },
     {
       "type": "timeseries",
@@ -2710,7 +2791,7 @@
           "sort": "desc"
         }
       },
-      "id": 31
+      "id": 32
     },
     {
       "type": "timeseries",
@@ -2800,7 +2881,7 @@
           "sort": "desc"
         }
       },
-      "id": 32
+      "id": 33
     },
     {
       "type": "timeseries",
@@ -2882,7 +2963,7 @@
           "sort": "desc"
         }
       },
-      "id": 33
+      "id": 34
     },
     {
       "type": "timeseries",
@@ -2972,7 +3053,7 @@
           "sort": "desc"
         }
       },
-      "id": 34
+      "id": 35
     },
     {
       "type": "row",
@@ -2985,7 +3066,7 @@
         "w": 24,
         "h": 1
       },
-      "id": 35
+      "id": 36
     },
     {
       "type": "timeseries",
@@ -3075,7 +3156,7 @@
           "sort": "desc"
         }
       },
-      "id": 36
+      "id": 37
     },
     {
       "type": "timeseries",
@@ -3183,7 +3264,7 @@
           "sort": "desc"
         }
       },
-      "id": 37
+      "id": 38
     },
     {
       "type": "timeseries",
@@ -3272,7 +3353,7 @@
           "sort": "desc"
         }
       },
-      "id": 38
+      "id": 39
     },
     {
       "type": "timeseries",
@@ -3362,7 +3443,7 @@
           "sort": "desc"
         }
       },
-      "id": 39
+      "id": 40
     },
     {
       "type": "row",
@@ -3375,7 +3456,7 @@
         "w": 24,
         "h": 1
       },
-      "id": 40
+      "id": 41
     },
     {
       "type": "timeseries",
@@ -3460,7 +3541,7 @@
           "sort": "desc"
         }
       },
-      "id": 41
+      "id": 42
     },
     {
       "type": "state-timeline",
@@ -3545,7 +3626,7 @@
           "sort": "none"
         }
       },
-      "id": 42
+      "id": 43
     },
     {
       "type": "timeseries",
@@ -3622,7 +3703,7 @@
           "sort": "desc"
         }
       },
-      "id": 43
+      "id": 44
     },
     {
       "type": "timeseries",
@@ -3707,7 +3788,7 @@
           "sort": "desc"
         }
       },
-      "id": 44
+      "id": 45
     },
     {
       "type": "timeseries",
@@ -3793,7 +3874,7 @@
           "sort": "desc"
         }
       },
-      "id": 45
+      "id": 46
     },
     {
       "type": "timeseries",
@@ -3869,7 +3950,7 @@
           "sort": "desc"
         }
       },
-      "id": 46
+      "id": 47
     }
   ]
 }

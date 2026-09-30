@@ -31,7 +31,10 @@ inhibit_rules:
   # One home-connection warning instead of a page per site, or per server the
   # Pi scrapes over its wg-mon tunnel (which rides the same home line).
   - source_matchers: ['alertname="HomeConnectivityLost"']
-    target_matchers: ['alertname=~"ProbeDown|HostDown"', 'host!="command-center"']
+    target_matchers: ['alertname=~"ProbeDown|HostDown|ScrapeTargetDown"', 'host!="command-center"']
+  # The Pi's own view of those tunnels goes stale with the home line too.
+  - source_matchers: ['alertname="HomeConnectivityLost"']
+    target_matchers: ['alertname="TunnelStale"', 'interface="wg-mon"']
   # A host that cannot be scraped says nothing reliable about anything on it.
   - source_matchers: ['alertname="HostDown"']
     target_matchers: ['alertname!="HostDown"']

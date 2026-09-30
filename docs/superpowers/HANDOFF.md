@@ -1,6 +1,59 @@
-# Handoff: pick up phase 1 locally
+# Handoff
 
-Branch: `feat/phase1-core-i5znpv` (no PR yet; do not open one unless asked).
+## Phase 2: Lightning infrastructure (2026-09-28, branch `feat/phase2-lightning-infra`)
+
+Phase 1 merged (PR #1). Phase 2 is live:
+
+- Gateway targets for lightning-a/b (postgres, patroni, etcd, haproxy) and lapi-witness (etcd)
+  on :9900; node_exporter everywhere on :9100. 30/30 targets up.
+- `hosts/server/cc_textfile.py`, a root timer on every host: `lightning_job_*` (last result,
+  last success carried across failures, interval from the timer), WireGuard handshakes per
+  peer, `node_reboot_required`, collector health.
+- postgres_exporter 0.20.1 as its own OS user over the socket with peer auth: role
+  `postgres_exporter` (pg_monitor, statement_timeout 5s, lock_timeout 1s, 3 connections),
+  created on the primary. No password exists.
+- HAProxy promex frontend on 127.0.0.1:8405 (validated, hitless reload; previous config kept
+  as `haproxy.cfg.before-command-center`).
+- Rules: `prometheus/rules/lightning.yml` (HA, jobs) plus SystemdUnitFailed, TunnelStale,
+  TextfileCollectorFailing; each with promtool tests. Board: Lightning HA (`lightning-ha`).
+
+### Rulings made in phase 2
+
+- node_exporter stays direct on :9100 (phase 1); the gateway serves only the exporters whose
+  ports are shared with write APIs or are loopback-only. Hosts with no exporters get no nginx.
+- The gateway listens on every address (`listen 9900`) so nginx never depends on wg-mon at
+  boot; the `wg-mon-firewall` nft table (now `/etc/command-center/firewall.nft`, ports 9100
+  and 9900) and nginx's allow list keep it to the Pi. On the witness, nginx was installed
+  for this and its default site removed.
+- The witness is reached over the LAN (`lan_ip`, Pi 10.0.0.249), not a tunnel, per the spec.
+- Cluster rules take the best view among scraped members, so a home outage is silence.
+  ReplicationBroken is judged from the primary (no streaming standby), which also covers a
+  replica that is down. EtcdNoQuorumRisk counts active peers seen by the best member.
+- Added beyond the spec: PatroniTwoPrimaries, FailoverHappened (timeline bump, warning),
+  PostgresDown (warning), HAProxyNoDatabase (critical, per node), TextfileCollectorFailing.
+- JobMissedRun is generic: latest success across nodes older than max(2 x interval, 15 min),
+  the interval read from each timer. The backup is left to BackupStale (26 h).
+- SystemdUnitFailed ignores `postgresql@*.service` (Debian's unit, always failed under Patroni).
+- TunnelStale at 5 minutes, not 3: re-keys every 2-2.5 min plus collector and scrape delay
+  reach 3.5 min on a healthy tunnel.
+- ScrapeTargetDown groups by job and host, so HostDown mutes a down host's gateway targets;
+  HomeConnectivityLost also mutes remote ScrapeTargetDown and the Pi's wg-mon TunnelStale.
+- WitnessCardFailing uses a read-only root only: node_exporter has no I/O error counter.
+- sql_exporter (data freshness, business queries) stays in phase 3 with the in-app metrics.
+
+### Found in phase 2, not fixed
+
+- **lightning-backup has failed every night since 2026-09-22** (last success 2026-09-21
+  03:20 UTC): `pg_dump: permission denied for table ops_switchovers`. The backup's role needs
+  `GRANT SELECT` on that table (and a default privilege for future ones). Not applied: a
+  production permission change for the user to approve.
+- lightning-a nginx loads `sites-enabled/api-lightningapi.conf.bak.20260903T002248Z`
+  ("conflicting server name" on every reload). Remove it from sites-enabled.
+- Both Lightning nodes report a pending reboot (`/run/reboot-required`).
+
+## Phase 1 (merged)
+
+Branch was: `feat/phase1-core-i5znpv`.
 Plan: `docs/superpowers/plans/2026-09-27-command-center-phase1-core.md`
 Spec: `docs/superpowers/specs/2026-09-27-command-center-design.md`
 

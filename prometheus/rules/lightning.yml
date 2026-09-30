@@ -1,0 +1,149 @@
+# The Lightning HA cluster (Patroni, Postgres, etcd, HAProxy on lightning-a/b and the
+# witness) and its scheduled jobs. Cluster-wide rules take the best view among the
+# members that can be scraped, so a home outage (nothing scraped) is silence, not a page.
+groups:
+  - name: lightning-ha
+    rules:
+      - alert: PatroniNoLeader
+        expr: max(patroni_primary{job="patroni"}) < 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No Patroni member is primary: Lightning's database is read-only or down"
+
+      - alert: PatroniTwoPrimaries
+        expr: sum(patroni_primary{job="patroni"}) > 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $value }} Patroni members claim to be primary (split brain)"
+
+      # A timeline bump is a promotion. Fires for ten minutes after it, so you hear about it.
+      - alert: FailoverHappened
+        expr: max(patroni_postgres_timeline{job="patroni"}) > max(patroni_postgres_timeline{job="patroni"} offset 10m)
+        labels:
+          severity: warning
+        annotations:
+          summary: "Lightning's database failed over (timeline is now {{ $value }})"
+
+      # From the primary's own view, so a replica that is down, not streaming or gone all count.
+      - alert: ReplicationBroken
+        expr: >
+          count(pg_up{job="postgres"} == 1 and on (host) pg_replication_is_replica{job="postgres"} == 0) > 0
+          unless count(pg_stat_replication_pg_wal_lsn_diff{job="postgres", state="streaming"}) > 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Lightning's primary has no streaming replica: a failover now would lose data or fail"
+
+      - alert: ReplicationLagHigh
+        expr: pg_replication_lag_seconds{job="postgres"} > 30 and on (host) pg_replication_is_replica{job="postgres"} == 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.host }} replica is {{ $value | humanizeDuration }} behind the primary"
+
+      - alert: PostgresDown
+        expr: pg_up{job="postgres"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Postgres on {{ $labels.host }} is not answering its exporter"
+
+      # Each node's API reaches the database through its own HAProxy; with no backend up there,
+      # that node's API cannot reach the database at all.
+      - alert: HAProxyNoDatabase
+        expr: haproxy_backend_active_servers{job="haproxy", proxy="postgres_leader"} < 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "HAProxy on {{ $labels.host }} sees no Postgres leader: its API cannot reach the database"
+
+      # Members seen by the best-connected member, itself included.
+      - alert: EtcdNoQuorumRisk
+        expr: >
+          max(sum by (host) (etcd_network_active_peers{job="etcd"})) + 1 < 3
+          or min(etcd_server_has_leader{job="etcd"}) == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "etcd has fewer than 3 healthy members or no leader: one more loss stops failover"
+
+      - alert: EtcdFsyncVerySlow
+        expr: >
+          histogram_quantile(0.99, sum by (host, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{job="etcd"}[5m]))) > 0.1
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "etcd on {{ $labels.host }} takes {{ $value | humanizeDuration }} to fsync its WAL (p99)"
+
+      - alert: EtcdFsyncSlow
+        expr: >
+          histogram_quantile(0.99, sum by (host, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{job="etcd", role="witness"}[5m]))) > 0.025
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "The witness's SD card is slow: etcd WAL fsync p99 {{ $value | humanizeDuration }}"
+
+      - alert: EtcdLeaderOnWitness
+        expr: etcd_server_is_leader{job="etcd", role="witness"} == 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "The witness is etcd leader; move it: etcdctl move-leader to lapi-a or lapi-b"
+
+      - alert: EtcdLeaderChurn
+        expr: max(increase(etcd_server_leader_changes_seen_total{job="etcd"}[1h])) > 3
+        labels:
+          severity: warning
+        annotations:
+          summary: "etcd changed leader {{ $value | printf \"%.0f\" }} times in the last hour"
+
+      - alert: WitnessCardFailing
+        expr: node_filesystem_readonly{role="witness", mountpoint="/"} == 1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "The witness's root filesystem is read-only: its SD card is failing"
+
+  - name: lightning-jobs
+    rules:
+      # A job runs on whichever node holds its role, so take the latest success across nodes.
+      # The floor keeps jobs that run every few seconds from flapping on scrape timing.
+      - alert: JobMissedRun
+        expr: >
+          time() - max by (unit) (lightning_job_last_success_timestamp_seconds{unit!="lightning-backup.service"})
+          > clamp_min(2 * max by (unit) (lightning_job_interval_seconds), 900)
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.unit }} has not succeeded for {{ $value | humanizeDuration }}"
+
+      - alert: BackupStale
+        expr: time() - max(lightning_job_last_success_timestamp_seconds{unit="lightning-backup.service"}) > 26 * 3600
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Lightning's last good backup is {{ $value | humanizeDuration }} old"
+
+      # The collectors run on the leader only, so ask whether any node has each one active.
+      - alert: IngestUnitInactive
+        expr: max by (name) (node_systemd_unit_state{name=~"lightning-ingest(-west)?[.]service", state="active"}) < 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.name }} is not running on any node: no new flashes are being collected"
