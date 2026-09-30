@@ -33,8 +33,9 @@ make enroll   # put the servers in inventory/hosts.yml on the Machine dashboard
 ```
 
 - **Add a probe:** add the URL under the right `service` (and `product`) in
-  `prometheus/targets/probes.yml`, choosing `http_2xx`, `http_any_answer` or
-  `http_405` from `blackbox/blackbox.yml`.
+  `prometheus/targets/probes.yml`, choosing `http_2xx`, `http_any_answer`, `http_405` or
+  `http_post_400` (a JSON API that refuses an empty POST, like vaulterm-api) from
+  `blackbox/blackbox.yml`.
 - **Change a dashboard:** edit `scripts/build_dashboards.py`, run `make dashboards`, and
   commit both; `make check` fails if the JSON and the generator disagree.
 - **Watch another server:** add a line to `inventory/hosts.yml` (friendly `host` name,

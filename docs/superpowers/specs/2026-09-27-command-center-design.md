@@ -52,6 +52,7 @@ TLS and server phases, and TLS certificate expiry.
 | `https://vaulterm.com/` | 2xx |
 | `https://vaulterm.com/api/waitlist` (GET) | 405 (a POST-only function answering means it is up) |
 | `https://github.com/xeonatlas/termora-releases/releases/latest/download/latest.yml` | 2xx after redirects (the Vaulterm update feed) |
+| `https://api.vaulterm.com/v1/{activate,checkout,stripe/webhook}` (POST `{}`) | 400 with the app's `bad-request`/`bad-signature` body (the license server is up and has its secrets; 503 means one is missing) |
 | `https://www.zelara.chat/`, `https://api.zelara.chat/` | 2xx/3xx/404 |
 
 Probes run from a single home vantage point, so a home internet outage makes every

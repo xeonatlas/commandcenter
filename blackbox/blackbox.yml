@@ -28,3 +28,21 @@ modules:
       ip_protocol_fallback: true
       follow_redirects: true
       valid_status_codes: [405]
+
+  # JSON POST APIs (vaulterm-api): an empty body is refused with 400 only after the
+  # function has checked its secrets (503 when one is missing), and before it touches
+  # the database, a rate limit or Stripe. The body match rules out a platform error page.
+  http_post_400:
+    prober: http
+    timeout: 15s
+    http:
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: true
+      follow_redirects: false
+      method: POST
+      headers:
+        Content-Type: application/json
+      body: "{}"
+      valid_status_codes: [400]
+      fail_if_body_not_matches_regexp:
+        - '"error":"bad-(request|signature)"'
